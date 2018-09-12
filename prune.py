@@ -24,7 +24,7 @@ class Prune():
 
         elif len(sys.argv) > 2:
 
-            print('Usage: <dir>')
+            raise EnvironmentError('Usage: <dir>')
 
         else:
 

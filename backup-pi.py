@@ -12,21 +12,20 @@ class Backup():
     #drive = '/media/nikola/External Disk'
     #dstDir = None
 
-    srcDir = None
-    padding = 0
+    src_dir = None
     username = None
     password = None
 
     def __init__(self):
-        #self.dstDir = self.drive + re.findall('[a-zA-Z-_]*$', self.srcDir)[0]
+        #self.dstDir = self.drive + re.findall('[a-zA-Z-_]*$', self.src_dir)[0]
 
         self.username = input('Username:')
         self.password = getpass.unix_getpass('Password:')
-        self.srcDir = getcwd()
-        self.lister(self.srcDir)
+        self.src_dir = getcwd()
+        self.lister(self.src_dir)
 
     def lister(self, path):
-        if path == self.srcDir:
+        if path == self.src_dir:
 
             #system(f'sshpass -p {self.password} ssh {self.username}@192.168.1.12 "mkdir -p /home/pi/Share/{self.get_root()}"')
             call(['sshpass', '-p', self.password, 'ssh', f'{self.username}@192.168.1.12', f'mkdir -p /home/pi/Share/{self.get_root()}'])
@@ -76,11 +75,11 @@ class Backup():
 
     def get_padding(self):
 
-        return len(self.srcDir) - len(re.findall('[a-zA-Z-_]*$', self.srcDir)[0])
+        return len(self.src_dir) - len(re.findall('[a-zA-Z-_]*$', self.src_dir)[0])
 
     def get_root(self):
 
-        return re.findall('[a-zA-Z-_]*$', self.srcDir)[0]
+        return re.findall('[a-zA-Z-_]*$', self.src_dir)[0]
 
 
 if __name__ == '__main__':
