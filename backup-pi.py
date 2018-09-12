@@ -1,6 +1,7 @@
+
 import shutil
-from os import listdir, getcwd, remove, system
-from os.path import join, isdir
+from os import listdir, getcwd, remove
+from os.path import join, isdir, exists
 import sys
 import getpass
 from subprocess import check_output, call
@@ -59,8 +60,9 @@ class Backup():
                 #system(f'smbclient //192.168.1.12/home -U {self.username} --pass {self.password} -c \'cd Share ; put {p} {r_file}\'')
                 call(['smbclient', '//192.168.1.12/home', '-U', self.username, '--pass', self.password, '-c', f'cd Share ; put {p} {r_file}'])
                 if f == 'git':
+                    if exists(r_file):
 
-                    remove(p)
+                        remove(r_file)
 
     def ignore_patterns(self, name, path):
 
