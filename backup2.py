@@ -1,57 +1,83 @@
 import shutil
-from os import listdir, system
+from os import listdir, system, getcwd, remove
 from os.path import join, isdir
 import sys
 import getpass
 import subprocess
 import re
-username = input('Username:')
-password = getpass.unix_getpass('Password:')
-
-srcDir = '/home/nikola/Documents/CODE'
-drive = '/media/nikola/External Disk'
-dstDir = '/media/nikola/External Disk/CODE'
 
 
-def main():
-    lister(srcDir)
+class Backup():
+    #drive = '/media/nikola/External Disk'
+    #dstDir = None
 
+    srcDir = None
+    padding = 0
+    username = None
+    password = None
 
-def lister(path):
+    def __init__(self):
+        #self.dstDir = self.drive + re.findall('[a-zA-Z-_]*$', self.srcDir)[0]
 
-    for f in listdir(path):
-        p = join(path, f)
-        if isdir(p) and not ignore_patterns(f, path):
-            if f == '.git':
-                out = subprocess.check_output(
-                    ['git', '-C', p, 'remote', '-v']).decode()
-                urls = re.findall(
-                    'https://.*github.com/[a-zA-Z0-9]+/[a-zA-Z0-9-_]+', out)
-                if len(urls) == 0:
-                    print(out)
-                print(urls, p)
+        self.username = input('Username:')
+        self.password = getpass.unix_getpass('Password:')
+        self.srcDir = getcwd()
+        self.lister(self.srcDir)
+
+    def lister(self, path):
+        if path == self.srcDir:
+
+            system(f'sshpass -p {self.password} ssh {self.username}@192.168.1.12 "mkdir -p /home/pi/Share/{self.get_root()}"')
+
+        for f in listdir(path):
+
+            p = join(path, f)
+
+            if isdir(p) and not self.ignore_patterns(f, path):
+
+                if f == '.git':
+
+                    out = subprocess.check_output(
+                        ['git', '-C', p, 'remote', '-v']).decode()
+                    git = re.findall('https://.*github.com/[a-zA-Z0-9]+/[a-zA-Z0-9-_]+', out)[0]
+                    scr = open(path + '/git', 'w')
+                    scr.write(f'git init && git remote add origin && git pull {git}')
+                    scr.close()
+
+                else:
+
+                    r_dir = p[self.get_padding():]
+                    system(f'sshpass -p {self.password} ssh {self.username}@192.168.1.12 "mkdir -p /home/pi/Share/{r_dir}"')
+                    self.lister(p)
+
             else:
-                r_dir = p[len(srcDir) - 4:]
-                # print(r_dir)
-                # system(
-                #    f'sshpass -p {password} ssh {username}@192.168.1.12 "mkdir -p /home/pi/Share/{r_dir}"')
-                lister(p)
-        else:
-            r_file = p[len(srcDir) - 4:]
-            # system(
-            #     f'sshpass -p {password} scp -r {p} {username}@192.168.1.12:/home/pi/Share/{r_file}')
-            # system(
-            #    f'smbclient //192.168.1.12/home -U {username} --pass {password} -c \'cd Share ; put {p} {r_file}\'')
-            # print(r_file)
 
+                # system(f'sshpass -p {self.password} scp -r {p} {self.username}@192.168.1.12:/home/pi/Share/{r_file}')
+                r_file = p[self.get_padding():]
+                system(f'smbclient //192.168.1.12/home -U {self.username} --pass {self.password} -c \'cd Share ; put {p} {r_file}\'')
 
-def ignore_patterns(name, path):
+                if f == 'git':
 
-    if isdir(path):
-        if name == 'node_modules' or name == '__pycache__' or name == '_others':
-            return True
-    return False
+                    remove(p)
+
+    def ignore_patterns(self, name, path):
+
+        if isdir(path):
+
+            if name == 'node_modules' or name == '__pycache__' or name == '_others':
+
+                return True
+
+        return False
+
+    def get_padding(self):
+
+        return len(self.srcDir) - len(re.findall('[a-zA-Z-_]*$', self.srcDir)[0])
+
+    def get_root(self):
+
+        return re.findall('[a-zA-Z-_]*$', self.srcDir)[0]
 
 
 if __name__ == '__main__':
-    main()
+    backup = Backup()
