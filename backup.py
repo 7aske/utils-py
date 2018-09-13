@@ -1,83 +1,122 @@
-import shutil
-from os import mkdir
+from shutil import copy2
+import distutils
+from os import mkdir, getcwd, listdir, stat, remove, walk
+from sys import argv
 import sys
 import re
-from os.path import exists, join, normpath, isdir
+from filecmp import cmp
+from os.path import exists, join, normpath, isdir, isfile, getmtime
 
 
 class Backup():
-    src_dir = ''
-    drive = ''
-    dest_dir = ''
+    src_dir = '/home/nikola/Documents/CODE'
+    dest_dir = '/media/nikola/ExternalDisk'
+    cpt = 0
+    cptc = 0
 
     def __init__(self):
 
-        if len(sys.argv) == 3:
+        if len(argv) == 3:
+            self.src_dir = self.parse_path(argv[1])
+            self.dest_dir = self.parse_path(argv[2]) + f'/{self.get_root(self.src_dir)}'
 
-            if sys.argv[1] == 'code' and sys.argv[2] == 'external':
-
-                self.src_dir = '/home/nikola/Documents/CODE'
-                self.dest_dir = f'/media/nikola/External Disk/{self.get_root(self.src_dir)}'
-
-            elif exists(sys.argv[1]) and exists(sys.argv[2]):
-
-                self.src_dir = sys.argv[1]
-
-                if exists(f'{sys.argv[2]}/{self.get_root(self.src_dir)}'):
-                    self.dest_dir = sys.argv[2]
-                else:
-                    try:
-                        mkdir(f'{sys.argv[2]}/{self.get_root(self.src_dir)}')
-                    except OSError as e:
-                        raise e
-                    finally:
-                        self.dest_dir = sys.argv[2]
-
-                
-            else:
-                raise EnvironmentError('Invalid src/dest folders')
+        elif len(argv) == 2:
+            self.dest_dir = self.parse_path(argv[1]) + f'/{self.get_root(self.src_dir)}'
 
         else:
-
-            raise EnvironmentError('Usage: <source_dir> <destination_dir>')
-
+            raise SystemExit('Usage: <src> [dest]')
+        self.make_dest_dir()
         print(self.src_dir, self.dest_dir)
-        shutil.copytree(self.src_dir, self.dest_dir, ignore=self.ignore_list)
+        self.cpt = sum([len(files) for r, d, files in walk(self.src_dir)])
+        self.backup(self.src_dir)
 
+    def parse_path(self, path):
+        if path == 'external':
+            return '/media/nikola/ExternalDisk'
+        elif path == 'code':
+            return '/home/nikola/Documents/CODE'
+        elif path.startswith('./'):
+            return getcwd() + '/' + path[2:]
+        elif path.startswith('.'):
+            return getcwd()
+        return path
 
-    def ignore_patterns(self, name, path):
-
-        patterns = ['node_modules', '__pycache__']
-
+    def ignore(self, name, path):
+        folders = ['node_modules', '__pycache__']
+        files = ['git']
         if isdir(path):
-
-            if name in patterns:
-
+            if name in folders:
+                return True
+        elif isfile(path):
+            if name in files:
                 return True
 
         return False
 
-    def ignore_list(self, path, files):
+    def backup(self, path):
 
-        filesToIgnore = []
+        for f in listdir(path):
 
-        for fileName in files:
+            s = join(path, f)
+            d = self.dest_dir + s[-self.get_padding(s):]
+            d_dir = d[len(self.dest_dir) - len(d):]
 
-            fullFileName = join(normpath(path), fileName)
+            if isdir(s) and not self.ignore(f, s):
 
-            if self.ignore_patterns(fileName, fullFileName):
+                if not exists(self.dest_dir + d_dir):
+                    mkdir(self.dest_dir + d_dir)
+                self.backup(s)
 
-                filesToIgnore.append(fileName)
+            elif isfile(s) and not self.ignore(f, s):
+                self.cptc += 1
+                self.progress(self.cptc, self.cpt)
+                if not exists(d):
+                    try:
+                        copy2(s, d)
+                        #print(f'Copying {d}')
+                    except OSError:
+                        SystemExit(f'Error copying {d}')
+                else:
+                    if not cmp(s, d):
+                        if getmtime(s) > getmtime(d):
+                            try:
+                                remove(d)
+                                copy2(s, d)
+                                #print(f'Replacing {d}')
+                            except OSError:
+                                raise SystemExit(f'Error replacing {d}')
 
-            else:
+    def progress(self,  count, total, status=''):
+        bar_len = 60
+        filled_len = int(round(bar_len * count / float(total)))
 
-                print(fileName)
+        percents = round(100.0 * count / float(total), 1)
+        bar = '=' * filled_len + '-' * (bar_len - filled_len)
 
-        return filesToIgnore
+        sys.stdout.write('[%s] %s%s ...%s\r' % (bar, percents, '%', status))
+        sys.stdout.flush()
 
-    def get_root(self, dir):
+    def get_root(self, path):
+        return re.findall('[a-zA-Z-_]*$', path)[0]
 
-        return re.findall('[a-zA-Z-_]*$', dir)[0]
+    def get_padding(self, path):
+        return len(path) - len(self.src_dir)
+
+    def make_dest_dir(self):
+        if not exists(self.src_dir):
+            raise SystemExit('Invalid src directory')
+
+        if not exists(self.parse_path(argv[2])):
+            try:
+                mkdir(self.parse_path(argv[2]))
+            except OSError:
+                raise SystemExit('Invalid dest directory')
+
+        if not exists(self.dest_dir):
+            try:
+                mkdir(self.dest_dir)
+            except OSError:
+                raise SystemExit('Invalid dest directory')
 
 
 if __name__ == '__main__':

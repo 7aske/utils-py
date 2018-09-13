@@ -1,78 +1,64 @@
 import sys
 from os import listdir, getcwd, remove, getcwd
 from shutil import rmtree
-from os.path import isdir, join
+from os.path import isdir, isfile, join
 
 
 class Prune():
+    path = ''
 
     def __init__(self):
 
         if len(sys.argv) == 2:
-
-            if sys.argv[1] == 'code':
-
-                self.path = '/home/nikola/Documents/CODE'
-
-            elif isdir(sys.argv[1]):
-
-                self.path = sys.argv[1]
-
-            else:
-
+            self.path = self.parse_path(sys.argv[1])
+            if not isdir(self.path):
                 raise EnvironmentError('Invalid path')
 
         elif len(sys.argv) > 2:
-
             raise EnvironmentError('Usage: <dir>')
 
         else:
-
             self.path = getcwd()
 
+        print(self.path)
         self.prune(self.path)
 
-    def folder_criteria(self, name):
-
-        my_list = ['node_modules']
-
-        if name in my_list:
-
-            return True
-
-        return False
-
-    def file_criteria(self, name):
-
-        my_list = ['git']
-
-        if name in my_list:
-
-            return True
+    def ignore(self, name, path):
+        folders = ['node_modules', '__pycache__']
+        files = ['git']
+        if isdir(path):
+            if name in folders:
+                return True
+        elif isfile(path):
+            if name in files:
+                return True
 
         return False
+
+    def parse_path(self, path):
+        if path == 'code':
+            return '/home/nikola/Documents/CODE'
+        elif path.startswith('./'):
+            return getcwd() + '/' + path[2:]
+        elif path.startswith('.'):
+            return getcwd()
+        return path
 
     def prune(self, path):
 
         for f in listdir(path):
-
             p = join(path, f)
 
             if isdir(p):
-
-                if self.folder_criteria(f):
-
+                if self.ignore(f, p):
                     print(p)
                     rmtree(p)
 
                 else:
-
                     self.prune(p)
 
-            else:
-
-                if self.file_criteria(f):
-
+            elif isfile(p):
+                if self.ignore(f, p):
                     print(p)
                     remove(p)
 
