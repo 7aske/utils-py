@@ -7,6 +7,7 @@ import sys
 import getpass
 from subprocess import check_output, call, STDOUT
 import re
+import atexit
 
 
 class Backup():
@@ -18,8 +19,8 @@ class Backup():
     password = None
     address = '192.168.1.12'
     dest = '/home/pi/Documents'
-    cpt = 0
-    cptc = 0
+    t_files = 0
+    c_files = 0
 
     def __init__(self):
         if len(argv) == 2:
@@ -31,13 +32,16 @@ class Backup():
 
         self.username = input('Username:')
         self.password = getpass.unix_getpass('Password:')
-        self.cpt = sum([len(files) for r, d, files in walk(self.src_dir)])
+        self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
         self.backup(self.src_dir)
+        call(['prune'])
 
     def backup(self, path):
         FNULL = open(devnull, 'w')
         if path == self.src_dir:
+
             retval = call(['sshpass', '-p', self.password, 'ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{self.get_root(self.src_dir)}'], stdout=FNULL, stderr=STDOUT)
+
             if retval != 0:
                 raise SystemExit('Invalid adress or permission')
 
@@ -47,6 +51,9 @@ class Backup():
 
             if isdir(p) and not self.ignore(f, p):
                 if f == '.git':
+
+                    self.c_files += sum([len(files) for r, d, files in walk(p)])
+
                     try:
                         out = check_output(['git', '-C', p, 'remote', '-v']).decode()
                         git = re.findall('https://.*github.com/[a-zA-Z0-9]+/[a-zA-Z0-9-_]+', out)[0]
@@ -60,32 +67,43 @@ class Backup():
                         raise SystemExit('Cannot write git command file')
 
                 else:
+
                     r_dir = p[self.get_padding():]
-                    retval = call(['sshpass', '-p', self.password, 'ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{r_dir}'], stdout=FNULL, stderr=STDOUT)
+
+                    retval = call(['sshpass', '-p', self.password, 'ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{r_dir}'])
+
                     if retval != 0:
                         raise SystemExit(f'Error creating {r_dir}')
                     self.backup(p)
-            elif not self.ignore(f, p):
-                self.cptc += 1
-                self.progress(self.cptc, self.cpt)
+            elif isfile(p) and not self.ignore(f, p):
+
                 r_file = p[self.get_padding():]
-                retval = call(['smbclient', f'//{self.address}/home', '-U', self.username, '--pass', self.password, '-c',
-                               f'cd {self.get_root(self.dest)} ; put {p} {r_file}'], stdout=FNULL, stderr=STDOUT)
+                self.c_files += 1
+                self.progress(self.c_files, self.t_files, r_file)
+
+                retval = call(['smbclient', f'//{self.address}/home', '-U', self.username, '--pass', self.password,
+                               '-c', f'cd {self.get_root(self.dest)} ; put {p} {r_file}'], stdout=FNULL, stderr=STDOUT)
+
                 if retval != 0:
                     raise SystemExit(f'Error copying {r_file}')
+            elif isfile(p) and self.ignore(f, p):
+                self.c_files += 1
+            else:
+                self.c_files += sum([len(files) for r, d, files in walk(p)])
 
     def progress(self,  count, total, status=''):
         bar_len = 60
         filled_len = int(round(bar_len * count / float(total)))
 
-        percents = round(100.0 * count / float(total), 1)
-        bar = '=' * filled_len + '-' * (bar_len - filled_len)
-
-        sys.stdout.write('[%s] %s%s ...%s\r' % (bar, percents, '%', status))
+        percents = round(100.0 * count / float(total), 2)
+        bar = '#' * filled_len + '.' * (bar_len - filled_len)
+        sys.stdout.write('\x1b[2K')
+        sys.stdout.write('%s\n\r' % (status))
+        sys.stdout.write('[%s] %s%s \r' % (bar, percents, '%'))
         sys.stdout.flush()
 
     def ignore(self, name, path):
-        folders = ['node_modules', '__pycache__', '_others']
+        folders = ['node_modules', '__pycache__', '_others', '.vs', '.vscode']
         files = []
         if isdir(path):
             if name in folders:
@@ -108,6 +126,11 @@ class Backup():
         elif path.startswith('.'):
             return getcwd()
         return path
+
+
+@atexit.register
+def clear():
+    sys.stdout.write('\n')
 
 
 if __name__ == '__main__':
