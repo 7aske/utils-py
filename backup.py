@@ -16,8 +16,14 @@ class Backup():
     c_files = 0
 
     def __init__(self):
+        if len(argv) == 4:
+            if argv[1] == 'code':
+                self.src_dir = f'{self.parse_path(argv[1])}/{argv[2]}'
+                self.dest_dir = self.parse_path(argv[3]) + f'/CODE/{argv[2]}'
+            else:
+                raise SystemExit('Invalid path')
 
-        if len(argv) == 3:
+        elif len(argv) == 3:
             self.src_dir = self.parse_path(argv[1])
             self.dest_dir = self.parse_path(argv[2]) + f'/{self.get_root(self.src_dir)}'
 
@@ -27,10 +33,12 @@ class Backup():
         else:
             raise SystemExit('Usage: <src> [dest]')
 
-        self.make_dest_dir()
-        self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
+        print(self.src_dir, self.dest_dir)
 
-        self.backup(self.src_dir)
+        # self.make_dest_dir()
+        #self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
+
+        # self.backup(self.src_dir)
 
     def backup(self, path):
 
@@ -71,14 +79,17 @@ class Backup():
 
     def parse_path(self, path):
         if path == 'external':
-            return '/media/nikola/ExternalDisk'
+            path = '/media/nikola/ExternalDisk'
         elif path == 'code':
-            return '/home/nikola/Documents/CODE'
+            path = '/home/nikola/Documents/CODE'
         elif path.startswith('./'):
-            return getcwd() + '/' + path[2:]
+            path = getcwd() + '/' + path[2:]
         elif path.startswith('.'):
-            return getcwd()
-        return path
+            path = getcwd()
+        if isdir(path):
+            return path
+        else:
+            raise SystemExit('Invalid directory')
 
     def ignore(self, name, path):
         folders = ['node_modules', '__pycache__', '.vs', '.vscode']

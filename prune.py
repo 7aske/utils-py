@@ -9,13 +9,19 @@ class Prune():
 
     def __init__(self):
 
-        if len(sys.argv) == 2:
+        if len(sys.argv) == 3:
+            if sys.argv[1] == 'code':
+                self.path = self.parse_path(f'/home/nikola/Documents/CODE/{sys.argv[2]}')
+            if not isdir(self.path):
+                raise SystemExit('Invalid path')
+
+        elif len(sys.argv) == 2:
             self.path = self.parse_path(sys.argv[1])
             if not isdir(self.path):
-                raise EnvironmentError('Invalid path')
+                raise SystemExit('Invalid path')
 
         elif len(sys.argv) > 2:
-            raise EnvironmentError('Usage: <dir>')
+            raise SystemExit('Usage: <dir>')
 
         else:
             self.path = getcwd()
