@@ -11,8 +11,8 @@ import atexit
 
 
 class Backup():
-    #drive = '/media/nikola/External Disk'
-    #dstDir = None
+    # drive = '/media/nikola/External Disk'
+    # dstDir = None
 
     src_dir = '/home/nikola/Documents/CODE'
     username = None
@@ -33,8 +33,8 @@ class Backup():
         self.username = input('Username:')
         self.password = getpass.unix_getpass('Password:')
         self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
-        self.backup(self.src_dir)
-        call(['prune'])
+        # self.backup(self.src_dir)
+        call(['/bin/bash', '-i', '-c', 'prune'])
 
     def backup(self, path):
         FNULL = open(devnull, 'w')
