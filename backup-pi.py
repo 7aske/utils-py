@@ -33,7 +33,7 @@ class Backup():
         self.username = input('Username:')
         self.password = getpass.unix_getpass('Password:')
         self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
-        # self.backup(self.src_dir)
+        self.backup(self.src_dir)
         call(['/bin/bash', '-i', '-c', 'prune'])
 
     def backup(self, path):
