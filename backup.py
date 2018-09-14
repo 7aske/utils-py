@@ -35,10 +35,10 @@ class Backup():
 
         print(self.src_dir, self.dest_dir)
 
-        # self.make_dest_dir()
-        #self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
+        self.make_dest_dir()
+        self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
 
-        # self.backup(self.src_dir)
+        self.backup(self.src_dir)
 
     def backup(self, path):
 
