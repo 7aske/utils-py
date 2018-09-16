@@ -1,17 +1,23 @@
 from shutil import copy2
 import distutils
-from os import mkdir, getcwd, listdir, stat, remove, walk
+from os import mkdir, getcwd, listdir, stat, remove, walk, devnull
 from sys import argv
 import sys
 import re
 from filecmp import cmp
 from os.path import exists, join, normpath, isdir, isfile, getmtime
 import atexit
+import getpass
+from subprocess import call, check_output, STDOUT
 
 
 class Backup():
     src_dir = '/home/nikola/Documents/CODE'
     dest_dir = '/media/nikola/ExternalDisk'
+    dest = '/home/pi/Documents'
+    username = None
+    password = None
+    address = '192.168.1.12'
     t_files = 0
     c_files = 0
 
@@ -33,12 +39,27 @@ class Backup():
         else:
             raise SystemExit('Usage: <src> [dest]')
 
-        print(self.src_dir, self.dest_dir)
+        if not exists(self.src_dir) or not isdir(self.src_dir):
+            raise SystemExit('Invalid source dir')
 
-        self.make_dest_dir()
-        self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
+        answer = input(f'Source      {self.src_dir} \nDestination {self.dest_dir}\nProceed? (Y/N): ')
+        if answer == 'y' or answer == 'Y':
 
-        self.backup(self.src_dir)
+            if argv[2] == 'pi' or argv[1] == 'pi':
+
+                self.username = input('Username:')
+                self.password = getpass.unix_getpass('Password:')
+                self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
+                self.backup_pi(self.src_dir)
+
+                prune = input('Prune src dir? (Y/N):')
+
+                if prune == 'y' or prune == 'Y':
+                    call(['/bin/bash', '-i', '-c', 'prune'])
+            else:
+                self.make_dest_dir()
+                self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
+                self.backup(self.src_dir)
 
     def backup(self, path):
 
@@ -77,27 +98,81 @@ class Backup():
             else:
                 self.c_files += sum([len(files) for r, d, files in walk(s)])
 
+    def backup_pi(self, path):
+        FNULL = open(devnull, 'w')
+        if path == self.src_dir:
+
+            retval = call(['sshpass', '-p', self.password, 'ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{self.get_root(self.src_dir)}'], stdout=FNULL, stderr=STDOUT)
+
+            if retval != 0:
+                raise SystemExit('Invalid adress or permission')
+
+        for f in listdir(path):
+
+            p = join(path, f)
+
+            if isdir(p) and not self.ignore(f, p):
+                if f == '.git':
+
+                    self.c_files += sum([len(files) for r, d, files in walk(p)])
+
+                    try:
+                        out = check_output(['git', '-C', p, 'remote', '-v']).decode()
+                        git = re.findall('https://.*github.com/[a-zA-Z0-9]+/[a-zA-Z0-9-_]+', out)[0]
+                    except IndexError:
+                        raise SystemExit(f'Bad index {p}')
+                    try:
+                        scr = open(path + '/git', 'w')
+                        scr.write(f'git init && git remote add origin && git pull {git}')
+                        scr.close()
+                    except OSError:
+                        raise SystemExit('Cannot write git command file')
+
+                else:
+
+                    r_dir = p[self.get_padding_pi():]
+
+                    retval = call(['sshpass', '-p', self.password, 'ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{r_dir}'])
+
+                    if retval != 0:
+                        raise SystemExit(f'Error creating {r_dir}')
+                    self.backup_pi(p)
+            elif isfile(p) and not self.ignore(f, p):
+
+                r_file = p[self.get_padding_pi():]
+                self.c_files += 1
+                self.progress(self.c_files, self.t_files, r_file)
+
+                retval = call(['smbclient', f'//{self.address}/home', '-U', self.username, '--pass', self.password,
+                               '-c', f'cd {self.get_root(self.dest)} ; put {p} {r_file}'], stdout=FNULL, stderr=STDOUT)
+
+                if retval != 0:
+                    raise SystemExit(f'Error copying {r_file}')
+            elif isfile(p) and self.ignore(f, p):
+                self.c_files += 1
+            else:
+                self.c_files += sum([len(files) for r, d, files in walk(p)])
+
     def parse_path(self, path):
         if path == 'external':
             path = '/media/nikola/ExternalDisk'
+        elif path == 'pi':
+            path = '/home/pi/Documents'
         elif path == 'code':
             path = '/home/nikola/Documents/CODE'
         elif path.startswith('./'):
             path = getcwd() + '/' + path[2:]
         elif path.startswith('.'):
             path = getcwd()
-        if isdir(path):
-            return path
-        else:
-            raise SystemExit('Invalid directory')
+        return path
 
     def ignore(self, name, path):
-        folders = ['node_modules', '__pycache__', '.vs', '.vscode']
+        folders = ['node_modules', '__pycache__', '.vs', '.vscode', '_others']
         files = ['git']
         if isdir(path):
             if name in folders:
                 return True
-        elif isfile(path):
+        elif isfile(path) and argv[2] != 'pi' and argv[1] != 'pi':
             if name in files:
                 return True
 
@@ -119,6 +194,9 @@ class Backup():
 
     def get_padding(self, path):
         return len(self.src_dir) - len(path)
+
+    def get_padding_pi(self):
+        return len(self.src_dir) - len(self.get_root(self.src_dir))
 
     def make_dest_dir(self):
         if not exists(self.src_dir):
