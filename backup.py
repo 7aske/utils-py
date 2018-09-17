@@ -8,7 +8,7 @@ from filecmp import cmp
 from os.path import exists, join, normpath, isdir, isfile, getmtime
 import atexit
 import getpass
-from subprocess import call, check_output, STDOUT
+from subprocess import call, check_output, STDOUT, Popen, PIPE
 
 
 class Backup():
@@ -16,6 +16,7 @@ class Backup():
     dest_dir = '/media/nikola/ExternalDisk'
     dest = '/home/pi/Documents'
     username = None
+    hostname = None
     #password = None
     address = '192.168.1.12'
     t_files = 0
@@ -51,15 +52,21 @@ class Backup():
             if argv[2] == 'pi' or argv[1] == 'pi':
 
                 self.username = input('Username:')
-                #self.password = getpass.unix_getpass('Password:')
+                ps = Popen(('arp', '-a'), stdout=PIPE)
+                output = ps.communicate()[0]
+                for line in output.decode().split('\n'):
+                    if self.username in line:
+                        self.address = re.search(r"([0-9\.]+)", line).group(1)
+                self.password = getpass.unix_getpass('Password:')
                 self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
                 self.backup_pi(self.src_dir)
 
                 prune = input('Prune src dir? (Y/N):')
 
                 if prune == 'y' or prune == 'Y':
-                    call(['/bin/bash', '-i', '-c', 'prune'])
+                    call(['/bin/bash', '-i', '-c', 'prune', self.src_dir])
             else:
+                # pass
                 self.make_dest_dir()
                 self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
                 self.backup(self.src_dir)
@@ -164,6 +171,8 @@ class Backup():
             path = '/media/nikola/ExternalDisk'
         elif path == 'pi':
             path = '/home/pi/Documents'
+        elif path == 'dropbox':
+            path = '/home/nikola/Dropbox'
         elif path == 'code':
             path = '/home/nikola/Documents/CODE'
         elif path.startswith('./'):
