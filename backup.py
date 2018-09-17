@@ -16,7 +16,7 @@ class Backup():
     dest_dir = '/media/nikola/ExternalDisk'
     dest = '/home/pi/Documents'
     username = None
-    password = None
+    #password = None
     address = '192.168.1.12'
     t_files = 0
     c_files = 0
@@ -41,14 +41,17 @@ class Backup():
 
         if not exists(self.src_dir) or not isdir(self.src_dir):
             raise SystemExit('Invalid source dir')
-
-        answer = input(f'Source      {self.src_dir} \nDestination {self.dest_dir}\nProceed? (Y/N): ')
+        answer = ''
+        possible_answers = ['Y', 'y', 'N', 'n']
+        print(f'Source      {self.src_dir} \nDestination {self.dest_dir}')
+        while not answer in possible_answers:
+            answer = input('Proceed? (Y/N): ')
         if answer == 'y' or answer == 'Y':
 
             if argv[2] == 'pi' or argv[1] == 'pi':
 
                 self.username = input('Username:')
-                self.password = getpass.unix_getpass('Password:')
+                #self.password = getpass.unix_getpass('Password:')
                 self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
                 self.backup_pi(self.src_dir)
 
@@ -102,7 +105,8 @@ class Backup():
         FNULL = open(devnull, 'w')
         if path == self.src_dir:
 
-            retval = call(['sshpass', '-p', self.password, 'ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{self.get_root(self.src_dir)}'], stdout=FNULL, stderr=STDOUT)
+            #retval = call(['sshpass', '-p', self.password, 'ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{self.get_root(self.src_dir)}'], stdout=FNULL, stderr=STDOUT)
+            retval = call(['ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{self.get_root(self.src_dir)}'], stdout=FNULL, stderr=STDOUT)
 
             if retval != 0:
                 raise SystemExit('Invalid adress or permission')
@@ -132,7 +136,8 @@ class Backup():
 
                     r_dir = p[self.get_padding_pi():]
 
-                    retval = call(['sshpass', '-p', self.password, 'ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{r_dir}'])
+                    #retval = call(['sshpass', '-p', self.password, 'ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{r_dir}'])
+                    retval = call(['ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{r_dir}'])
 
                     if retval != 0:
                         raise SystemExit(f'Error creating {r_dir}')
@@ -143,8 +148,9 @@ class Backup():
                 self.c_files += 1
                 self.progress(self.c_files, self.t_files, r_file)
 
-                retval = call(['smbclient', f'//{self.address}/home', '-U', self.username, '--pass', self.password,
-                               '-c', f'cd {self.get_root(self.dest)} ; put {p} {r_file}'], stdout=FNULL, stderr=STDOUT)
+                # retval = call(['smbclient', f'//{self.address}/home', '-U', self.username, '--pass', self.password,
+                #                '-c', f'cd {self.get_root(self.dest)} ; put {p} {r_file}'], stdout=FNULL, stderr=STDOUT)
+                retval = call(['scp', p, f'{self.username}@{self.address}:{self.dest}/{r_file}'], stdout=FNULL, stderr=STDOUT)
 
                 if retval != 0:
                     raise SystemExit(f'Error copying {r_file}')

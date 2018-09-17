@@ -20,8 +20,8 @@ class Prune():
             if not isdir(self.path):
                 raise SystemExit('Invalid path')
 
-        elif len(sys.argv) > 2:
-            raise SystemExit('Usage: <dir>')
+        elif len(sys.argv) > 3:
+            raise SystemExit('Usage: <dir> <sub_dir>')
 
         else:
             self.path = getcwd()
