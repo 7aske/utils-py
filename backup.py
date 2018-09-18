@@ -49,7 +49,7 @@ class Backup():
             answer = input('Proceed? (Y/N): ')
         if answer == 'y' or answer == 'Y':
 
-            if argv[2] == 'pi' or argv[1] == 'pi':
+            if argv[2] == 'pi' or argv[1] == 'pi' or argv[3] == 'pi':
 
                 self.username = input('Username:')
                 ps = Popen(('arp', '-a'), stdout=PIPE)
