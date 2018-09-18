@@ -57,7 +57,7 @@ class Backup():
                 for line in output.decode().split('\n'):
                     if self.username in line:
                         self.address = re.search(r"([0-9\.]+)", line).group(1)
-                self.password = getpass.unix_getpass('Password:')
+                #self.password = getpass.unix_getpass('Password:')
                 self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
                 self.backup_pi(self.src_dir)
 
