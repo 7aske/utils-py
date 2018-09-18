@@ -11,8 +11,16 @@ class Mailer():
     username = '7aske.mailer.pi@gmail.com'
     password = ''
     to = 'ntasic7@gmail.com'
+    delay = 60
 
     def __init__(self):
+
+        if len(argv) == 1:
+            raise SystemExit('Password missing.')
+
+        if len(argv) == 3:
+            self.delay = int(argv[2])
+
         self.password = argv[1]
         self.ip = self.get_ip()
         self.check_ip_change()
@@ -25,8 +33,9 @@ class Mailer():
         return ip
 
     def check_ip_change(self):
-        Timer(1800, self.check_ip_change).start()
+        Timer(self.delay, self.check_ip_change).start()
         new_ip = self.get_ip()
+        print(new_ip)
         if new_ip != self.ip:
             self.ip = new_ip
             self.send_email(self.ip)

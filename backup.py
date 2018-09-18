@@ -14,11 +14,11 @@ from subprocess import call, check_output, STDOUT, Popen, PIPE
 class Backup():
     src_dir = '/home/nikola/Documents/CODE'
     dest_dir = '/media/nikola/ExternalDisk'
-    dest = '/home/pi/Documents'
+    #dest = '/home/pi/Documents'
     username = None
     hostname = None
     #password = None
-    address = '192.168.1.12'
+    address = '192.168.1.5'
     t_files = 0
     c_files = 0
 
@@ -26,7 +26,7 @@ class Backup():
         if len(argv) == 4:
             if argv[1] == 'code':
                 self.src_dir = f'{self.parse_path(argv[1])}/{argv[2]}'
-                self.dest_dir = self.parse_path(argv[3]) + f'/CODE/{argv[2]}'
+                self.dest_dir = self.parse_path(argv[3]) + '/CODE/' + argv[2]
             else:
                 raise SystemExit('Invalid path')
 
@@ -49,7 +49,7 @@ class Backup():
             answer = input('Proceed? (Y/N): ')
         if answer == 'y' or answer == 'Y':
 
-            if argv[2] == 'pi' or argv[1] == 'pi' or argv[3] == 'pi':
+            if 'pi' in argv:
 
                 self.username = input('Username:')
                 ps = Popen(('arp', '-a'), stdout=PIPE)
@@ -70,6 +70,8 @@ class Backup():
                 self.make_dest_dir()
                 self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
                 self.backup(self.src_dir)
+        else:
+            SystemExit('Bye!')
 
     def backup(self, path):
 
@@ -112,9 +114,7 @@ class Backup():
         FNULL = open(devnull, 'w')
         if path == self.src_dir:
 
-            #retval = call(['sshpass', '-p', self.password, 'ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{self.get_root(self.src_dir)}'], stdout=FNULL, stderr=STDOUT)
-            retval = call(['ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{self.get_root(self.src_dir)}'], stdout=FNULL, stderr=STDOUT)
-
+            retval = call(['ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest_dir}'], stdout=FNULL, stderr=STDOUT)
             if retval != 0:
                 raise SystemExit('Invalid adress or permission')
 
@@ -124,7 +124,6 @@ class Backup():
 
             if isdir(p) and not self.ignore(f, p):
                 if f == '.git':
-
                     self.c_files += sum([len(files) for r, d, files in walk(p)])
 
                     try:
@@ -141,24 +140,18 @@ class Backup():
 
                 else:
 
-                    r_dir = p[self.get_padding_pi():]
-
-                    #retval = call(['sshpass', '-p', self.password, 'ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{r_dir}'])
-                    retval = call(['ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest}/{r_dir}'])
-
+                    r_dir = p[self.get_padding(p):]
+                    retval = call(['ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest_dir}{r_dir}'])
                     if retval != 0:
                         raise SystemExit(f'Error creating {r_dir}')
                     self.backup_pi(p)
             elif isfile(p) and not self.ignore(f, p):
 
-                r_file = p[self.get_padding_pi():]
+                r_file = p[self.get_padding(p):]
                 self.c_files += 1
                 self.progress(self.c_files, self.t_files, r_file)
 
-                # retval = call(['smbclient', f'//{self.address}/home', '-U', self.username, '--pass', self.password,
-                #                '-c', f'cd {self.get_root(self.dest)} ; put {p} {r_file}'], stdout=FNULL, stderr=STDOUT)
-                retval = call(['scp', p, f'{self.username}@{self.address}:{self.dest}/{r_file}'], stdout=FNULL, stderr=STDOUT)
-
+                retval = call(['scp', p, f'{self.username}@{self.address}:{self.dest_dir}{r_file}'], stdout=FNULL, stderr=STDOUT)
                 if retval != 0:
                     raise SystemExit(f'Error copying {r_file}')
             elif isfile(p) and self.ignore(f, p):
