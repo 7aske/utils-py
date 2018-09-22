@@ -12,8 +12,8 @@ from subprocess import call, check_output, STDOUT, Popen, PIPE
 
 
 class Backup():
-    src_dir = '/home/nikola/Documents/CODE'
-    dest_dir = '/media/nikola/ExternalDisk'
+    src_dir = '/home/nik/Documents/CODE'
+    dest_dir = '/media/nik/ExternalDisk'
     #dest = '/home/pi/Documents'
     username = None
     hostname = None
@@ -161,13 +161,13 @@ class Backup():
 
     def parse_path(self, path):
         if path == 'external':
-            path = '/media/nikola/ExternalDisk'
+            path = '/media/nik/ExternalDisk'
         elif path == 'pi':
             path = '/home/pi/Documents'
         elif path == 'dropbox':
-            path = '/home/nikola/Dropbox'
+            path = '/home/nik/Dropbox'
         elif path == 'code':
-            path = '/home/nikola/Documents/CODE'
+            path = '/home/nik/Documents/CODE'
         elif path.startswith('./'):
             path = getcwd() + '/' + path[2:]
         elif path.startswith('.'):
