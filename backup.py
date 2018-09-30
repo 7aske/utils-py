@@ -1,28 +1,32 @@
-from shutil import copy2
-import distutils
-from os import mkdir, getcwd, listdir, stat, remove, walk, devnull
-from sys import argv
-import sys
-import re
-from filecmp import cmp
-from os.path import exists, join, normpath, isdir, isfile, getmtime
+
 import atexit
+import distutils
+from filecmp import cmp
 import getpass
+from os.path import exists, join, normpath, isdir, isfile, getmtime
+from os import mkdir, getcwd, listdir, stat, remove, walk, devnull
+import pysftp as sftp
+import re
+from shutil import copy2, rmtree
+from sys import argv, platform, stdout
 from subprocess import call, check_output, STDOUT, Popen, PIPE
 
 
 class Backup():
-    src_dir = '/home/nik/Documents/CODE'
-    dest_dir = '/media/nik/ExternalDisk'
-    #dest = '/home/pi/Documents'
-    username = None
-    hostname = None
-    #password = None
+    src_dir = 'd:/Users/nik/Documents/CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
+    dest_dir = 'f:/ExternalDisk' if platform == 'win32' else '/media/nik/ExternalDisk'
+    username = ''
+    hostname = ''
+    password = ''
     address = '192.168.1.5'
     t_files = 0
     c_files = 0
 
     def __init__(self):
+
+        answer = ''
+        possible_answers = ['Y', 'y', 'N', 'n']
+
         if len(argv) == 4:
             if argv[1] == 'code':
                 self.src_dir = f'{self.parse_path(argv[1])}/{argv[2]}'
@@ -32,46 +36,73 @@ class Backup():
 
         elif len(argv) == 3:
             self.src_dir = self.parse_path(argv[1])
-            self.dest_dir = self.parse_path(argv[2]) + f'/{self.get_root(self.src_dir)}'
+            if platform == 'win32':
+                self.dest_dir = self.parse_path(argv[2]) + f'\\{self.get_root(self.src_dir)}'
+            else:
+                self.dest_dir = self.parse_path(argv[2]) + f'/{self.get_root(self.src_dir)}'
 
         elif len(argv) == 2:
-            self.dest_dir = self.parse_path(argv[1]) + f'/{self.get_root(self.src_dir)}'
+            if platform == 'win32':
+                self.dest_dir = self.parse_path(argv[1]) + f'\\{self.get_root(self.src_dir)}'
+            else:
+                self.dest_dir = self.parse_path(argv[1]) + f'/{self.get_root(self.src_dir)}'
 
         else:
             raise SystemExit('Usage: <src> [dest]')
-
+        print(exists(self.src_dir), isdir(self.src_dir))
         if not exists(self.src_dir) or not isdir(self.src_dir):
             raise SystemExit('Invalid source dir')
-        answer = ''
-        possible_answers = ['Y', 'y', 'N', 'n']
+
         print(f'Source      {self.src_dir} \nDestination {self.dest_dir}')
         while not answer in possible_answers:
             answer = input('Proceed? (Y/N): ')
         if answer == 'y' or answer == 'Y':
 
             if 'pi' in argv:
-
+                self.hostname = input('Hostname:')
                 self.username = input('Username:')
-                ps = Popen(('arp', '-a'), stdout=PIPE)
-                output = ps.communicate()[0]
-                for line in output.decode().split('\n'):
-                    if self.username in line:
-                        self.address = re.search(r"([0-9\.]+)", line).group(1)
-                #self.password = getpass.unix_getpass('Password:')
-                self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
-                self.backup_pi(self.src_dir)
+                # ps = Popen(('arp', '-a'), stdout=PIPE)
+                # output = ps.communicate()[0]
+                # for line in output.decode().split('\n'):
+                #     if self.username in line:
+                #         self.hostname = re.search(r"([0-9\.]+)", line).group(1)
+                self.password = getpass.win_getpass('Password:') if platform == 'win32' else getpass.unix_getpass('Password:')
+                self.t_files = sum([len(f) for r, d, f in walk(self.src_dir)])
+                self.backup_network(self.src_dir)
+                # self.backup_pi(self.src_dir)
 
-                prune = input('Prune src dir? (Y/N):')
+                # prune = input('Prune src dir? (Y/N):')
 
-                if prune == 'y' or prune == 'Y':
-                    call(['/bin/bash', '-i', '-c', 'prune', self.src_dir])
+                # if prune == 'y' or prune == 'Y':
+                #     call(['/bin/bash', '-i', '-c', 'prune', self.src_dir])
             else:
-                # pass
                 self.make_dest_dir()
-                self.t_files = sum([len(files) for r, d, files in walk(self.src_dir)])
-                self.backup(self.src_dir)
+                self.t_files = sum([len(f) for r, d, f in walk(self.src_dir)])
+                # self.backup(self.src_dir)
+                self.rm_old(self.dest_dir)
         else:
             SystemExit('Bye!')
+
+    def rm_old(self, path):
+        for f in listdir(path):
+            s = join(path, f)
+            r_dir = ''
+
+            if platform == 'win32':
+                r_dir = self.src_dir + s[len(self.dest_dir):]
+            else:
+                r_dir = self.src_dir + '/' + s[:len(self.src_dir)]
+
+            if isdir(s):
+                if not exists(r_dir):
+                    print(r_dir)
+                    rmtree(s)
+                else:
+                    self.rm_old(s)
+            elif isfile(s):
+                if not exists(r_dir):
+                    print(r_dir)
+                    remove(s)
 
     def backup(self, path):
 
@@ -108,7 +139,12 @@ class Backup():
             elif isfile(s) and self.ignore(f, s):
                 self.c_files += 1
             else:
-                self.c_files += sum([len(files) for r, d, files in walk(s)])
+                self.c_files += sum([len(f) for r, d, f in walk(s)])
+
+    def backup_network(self, path):
+
+        with sftp.Connection(self.hostname, username=self.username, password=self.password) as conn:
+            print(conn.listdir())
 
     def backup_pi(self, path):
         FNULL = open(devnull, 'w')
@@ -124,7 +160,7 @@ class Backup():
 
             if isdir(p) and not self.ignore(f, p):
                 if f == '.git':
-                    self.c_files += sum([len(files) for r, d, files in walk(p)])
+                    self.c_files += sum([len(f) for r, d, f in walk(p)])
 
                     try:
                         out = check_output(['git', '-C', p, 'remote', '-v']).decode()
@@ -157,19 +193,22 @@ class Backup():
             elif isfile(p) and self.ignore(f, p):
                 self.c_files += 1
             else:
-                self.c_files += sum([len(files) for r, d, files in walk(p)])
+                self.c_files += sum([len(f) for r, d, f in walk(p)])
 
     def parse_path(self, path):
         if path == 'external':
-            path = '/media/nik/ExternalDisk'
+            path = 'f:\\ExternalDisk' if platform == 'win32' else '/media/nik/ExternalDisk'
         elif path == 'pi':
             path = '/home/pi/Documents'
         elif path == 'dropbox':
-            path = '/home/nik/Dropbox'
+            path = 'd:\\Users\\nik\\Dropbox' if platform == 'win32' else '/home/nik/Dropbox'
         elif path == 'code':
-            path = '/home/nik/Documents/CODE'
+            path = 'd:\\Users\\nik\\Documents/CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
         elif path.startswith('./'):
-            path = getcwd() + '/' + path[2:]
+            if platform == 'win32':
+                path = getcwd() + '\\' + path[2:]
+            else:
+                path = getcwd() + '/' + path[2:]
         elif path.startswith('.'):
             path = getcwd()
         return path
@@ -192,10 +231,10 @@ class Backup():
 
         percents = round(100.0 * count / float(total), 2)
         bar = '#' * filled_len + '.' * (bar_len - filled_len)
-        sys.stdout.write('\x1b[2K')
-        sys.stdout.write('%s\n\r' % (status))
-        sys.stdout.write('[%s] %s%s \r' % (bar, percents, '%'))
-        sys.stdout.flush()
+        stdout.write('\x1b[2K')
+        stdout.write('%s\n\r' % (status))
+        stdout.write('[%s] %s%s \r' % (bar, percents, '%'))
+        stdout.flush()
 
     def get_root(self, path):
         return re.findall('[a-zA-Z-_]*$', path)[0]
@@ -225,7 +264,7 @@ class Backup():
 
 @atexit.register
 def clear():
-    sys.stdout.write('\n')
+    stdout.write('\n')
 
 
 if __name__ == '__main__':
