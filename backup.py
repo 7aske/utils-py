@@ -1,6 +1,6 @@
 
 import atexit
-import distutils
+from distutils.dir_util import mkpath
 from filecmp import cmp
 import getpass
 from os.path import exists, join, normpath, isdir, isfile, getmtime
@@ -13,8 +13,8 @@ from subprocess import call, check_output, STDOUT, Popen, PIPE
 
 
 class Backup():
-    src_dir = 'd:/Users/nik/Documents/CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
-    dest_dir = 'f:/ExternalDisk' if platform == 'win32' else '/media/nik/ExternalDisk'
+    src_dir = 'd:\\Users\\nik\\Documents\\CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
+    dest_dir = 'f:\\ExternalDisk' if platform == 'win32' else '/media/nik/ExternalDisk'
     username = ''
     hostname = ''
     password = ''
@@ -29,8 +29,12 @@ class Backup():
 
         if len(argv) == 4:
             if argv[1] == 'code':
-                self.src_dir = f'{self.parse_path(argv[1])}/{argv[2]}'
-                self.dest_dir = self.parse_path(argv[3]) + '/CODE/' + argv[2]
+                if platform == 'win32':
+                    self.src_dir = f'{self.parse_path(argv[1])}\\{argv[2]}'
+                    self.dest_dir = self.parse_path(argv[3]) + '\\CODE\\' + argv[2]
+                else:
+                    self.src_dir = f'{self.parse_path(argv[1])}/{argv[2]}'
+                    self.dest_dir = self.parse_path(argv[3]) + '/CODE/' + argv[2]
             else:
                 raise SystemExit('Invalid path')
 
@@ -53,6 +57,9 @@ class Backup():
         if not exists(self.src_dir) or not isdir(self.src_dir):
             raise SystemExit('Invalid source dir')
 
+        if 'pi' in argv:
+            self.dest_dir = self.dest_dir.replace('\\', '/')
+
         print(f'Source      {self.src_dir} \nDestination {self.dest_dir}')
         while not answer in possible_answers:
             answer = input('Proceed? (Y/N): ')
@@ -61,24 +68,15 @@ class Backup():
             if 'pi' in argv:
                 self.hostname = input('Hostname:')
                 self.username = input('Username:')
-                # ps = Popen(('arp', '-a'), stdout=PIPE)
-                # output = ps.communicate()[0]
-                # for line in output.decode().split('\n'):
-                #     if self.username in line:
-                #         self.hostname = re.search(r"([0-9\.]+)", line).group(1)
                 self.password = getpass.win_getpass('Password:') if platform == 'win32' else getpass.unix_getpass('Password:')
                 self.t_files = sum([len(f) for r, d, f in walk(self.src_dir)])
+                self.make_dest_dir_network()
                 self.backup_network(self.src_dir)
-                # self.backup_pi(self.src_dir)
 
-                # prune = input('Prune src dir? (Y/N):')
-
-                # if prune == 'y' or prune == 'Y':
-                #     call(['/bin/bash', '-i', '-c', 'prune', self.src_dir])
             else:
                 self.make_dest_dir()
                 self.t_files = sum([len(f) for r, d, f in walk(self.src_dir)])
-                # self.backup(self.src_dir)
+                self.backup(self.src_dir)
                 self.rm_old(self.dest_dir)
         else:
             SystemExit('Bye!')
@@ -91,7 +89,7 @@ class Backup():
             if platform == 'win32':
                 r_dir = self.src_dir + s[len(self.dest_dir):]
             else:
-                r_dir = self.src_dir + '/' + s[:len(self.src_dir)]
+                r_dir = self.src_dir + s[len(self.src_dir):]
 
             if isdir(s):
                 if not exists(r_dir):
@@ -142,58 +140,23 @@ class Backup():
                 self.c_files += sum([len(f) for r, d, f in walk(s)])
 
     def backup_network(self, path):
-
         with sftp.Connection(self.hostname, username=self.username, password=self.password) as conn:
-            print(conn.listdir())
+            pass
 
-    def backup_pi(self, path):
-        FNULL = open(devnull, 'w')
-        if path == self.src_dir:
+                    # if f == '.git':
+                    #     self.c_files += sum([len(f) for r, d, f in walk(p)])
 
-            retval = call(['ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest_dir}'], stdout=FNULL, stderr=STDOUT)
-            if retval != 0:
-                raise SystemExit('Invalid adress or permission')
-
-        for f in listdir(path):
-
-            p = join(path, f)
-
-            if isdir(p) and not self.ignore(f, p):
-                if f == '.git':
-                    self.c_files += sum([len(f) for r, d, f in walk(p)])
-
-                    try:
-                        out = check_output(['git', '-C', p, 'remote', '-v']).decode()
-                        git = re.findall('https://.*github.com/[a-zA-Z0-9]+/[a-zA-Z0-9-_]+', out)[0]
-                    except IndexError:
-                        raise SystemExit(f'Bad index {p}')
-                    try:
-                        scr = open(path + '/git', 'w')
-                        scr.write(f'git init && git remote add origin && git pull {git}')
-                        scr.close()
-                    except OSError:
-                        raise SystemExit('Cannot write git command file')
-
-                else:
-
-                    r_dir = p[self.get_padding(p):]
-                    retval = call(['ssh', f'{self.username}@{self.address}', f'mkdir -p {self.dest_dir}{r_dir}'])
-                    if retval != 0:
-                        raise SystemExit(f'Error creating {r_dir}')
-                    self.backup_pi(p)
-            elif isfile(p) and not self.ignore(f, p):
-
-                r_file = p[self.get_padding(p):]
-                self.c_files += 1
-                self.progress(self.c_files, self.t_files, r_file)
-
-                retval = call(['scp', p, f'{self.username}@{self.address}:{self.dest_dir}{r_file}'], stdout=FNULL, stderr=STDOUT)
-                if retval != 0:
-                    raise SystemExit(f'Error copying {r_file}')
-            elif isfile(p) and self.ignore(f, p):
-                self.c_files += 1
-            else:
-                self.c_files += sum([len(f) for r, d, f in walk(p)])
+                    #     try:
+                    #         out = check_output(['git', '-C', p, 'remote', '-v']).decode()
+                    #         git = re.findall('https://.*github.com/[a-zA-Z0-9]+/[a-zA-Z0-9-_]+', out)[0]
+                    #     except IndexError:
+                    #         raise SystemExit(f'Bad index {p}')
+                    #     try:
+                    #         scr = open(path + '/git', 'w')
+                    #         scr.write(f'git init && git remote add origin && git pull {git}')
+                    #         scr.close()
+                    #     except OSError:
+                    #         raise SystemExit('Cannot write git command file')
 
     def parse_path(self, path):
         if path == 'external':
@@ -203,7 +166,7 @@ class Backup():
         elif path == 'dropbox':
             path = 'd:\\Users\\nik\\Dropbox' if platform == 'win32' else '/home/nik/Dropbox'
         elif path == 'code':
-            path = 'd:\\Users\\nik\\Documents/CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
+            path = 'd:\\Users\\nik\\Documents\\CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
         elif path.startswith('./'):
             if platform == 'win32':
                 path = getcwd() + '\\' + path[2:]
@@ -245,19 +208,18 @@ class Backup():
     def get_padding_pi(self):
         return len(self.src_dir) - len(self.get_root(self.src_dir))
 
+    def make_dest_dir_network(self):
+        with sftp.Connection(self.hostname, username=self.username, password=self.password) as conn:
+            if not conn.exists(self.dest_dir):
+                conn.makedirs(self.dest_dir)
+
     def make_dest_dir(self):
         if not exists(self.src_dir):
             raise SystemExit('Invalid src directory')
 
-        if not exists(self.parse_path(argv[2])):
-            try:
-                mkdir(self.parse_path(argv[2]))
-            except OSError:
-                raise SystemExit('Invalid dest directory')
-
         if not exists(self.dest_dir):
             try:
-                mkdir(self.dest_dir)
+                mkpath(self.dest_dir)
             except OSError:
                 raise SystemExit('Invalid dest directory')
 
