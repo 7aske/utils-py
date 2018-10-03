@@ -21,6 +21,7 @@ class Backup():
     address = '192.168.1.5'
     t_files = 0
     c_files = 0
+    slash = '\\' if platform == 'win32' else '/'
 
     def __init__(self):
 
@@ -29,31 +30,20 @@ class Backup():
 
         if len(argv) == 4:
             if argv[1] == 'code':
-                if platform == 'win32':
-                    self.src_dir = f'{self.parse_path(argv[1])}\\{argv[2]}'
-                    self.dest_dir = self.parse_path(argv[3]) + '\\CODE\\' + argv[2]
-                else:
-                    self.src_dir = f'{self.parse_path(argv[1])}/{argv[2]}'
-                    self.dest_dir = self.parse_path(argv[3]) + '/CODE/' + argv[2]
+                self.src_dir = f'{self.parse_path(argv[1])}{self.slash}{argv[2]}'
+                self.dest_dir = f'{self.parse_path(argv[3])}{self.slash}CODE{self.slash}{argv[2]}'
             else:
                 raise SystemExit('Invalid path')
 
         elif len(argv) == 3:
             self.src_dir = self.parse_path(argv[1])
-            if platform == 'win32':
-                self.dest_dir = self.parse_path(argv[2]) + f'\\{self.get_root(self.src_dir)}'
-            else:
-                self.dest_dir = self.parse_path(argv[2]) + f'/{self.get_root(self.src_dir)}'
+            self.dest_dir = f'{self.parse_path(argv[2])}{self.slash}{self.get_root(self.src_dir)}'
 
         elif len(argv) == 2:
-            if platform == 'win32':
-                self.dest_dir = self.parse_path(argv[1]) + f'\\{self.get_root(self.src_dir)}'
-            else:
-                self.dest_dir = self.parse_path(argv[1]) + f'/{self.get_root(self.src_dir)}'
+            self.dest_dir = f'{self.parse_path(argv[1])}{self.slash}{self.get_root(self.src_dir)}'
 
         else:
             raise SystemExit('Usage: <src> [dest]')
-        print(exists(self.src_dir), isdir(self.src_dir))
         if not exists(self.src_dir) or not isdir(self.src_dir):
             raise SystemExit('Invalid source dir')
 
@@ -141,22 +131,42 @@ class Backup():
 
     def backup_network(self, path):
         with sftp.Connection(self.hostname, username=self.username, password=self.password) as conn:
-            pass
+            with conn.cd(self.dest_dir):
+                for f in listdir(path):
+                    s = join(path, f)
+                    d = self.dest_dir + s[self.get_padding(s):].replace('\\', '/')
+                    r_dir = d[len(self.dest_dir) - len(d):].replace('\\', '/')
+                    if isdir(s) and not self.ignore(f, s):
+                        if f == '.git':
+                            self.c_files += sum([len(f) for r, d, f in walk(s)])
+                            try:
+                                out = check_output(['git', '-C', s, 'remote', '-v']).decode()
+                                git = re.findall('https://.*github.com/[a-zA-Z0-9]+/[a-zA-Z0-9-_]+', out)[0]
+                            except IndexError:
+                                raise SystemExit(f'Bad index {s}')
+                            try:
+                                gitp = s[:-4] + 'gitp'
+                                scr = open(gitp, 'w')
+                                scr.write(f'git init && git remote add origin && git pull {git}')
+                                scr.close()
+                                conn.put(gitp, remotepath=self.dest_dir+r_dir[:-4]+'/gitp')
+                            except OSError:
+                                raise SystemExit('Cannot write git command file')
+                        else:
+                            if not conn.exists(self.dest_dir + r_dir):
+                                conn.mkdir(self.dest_dir + r_dir)
+                            self.backup_network(s)
 
-                    # if f == '.git':
-                    #     self.c_files += sum([len(f) for r, d, f in walk(p)])
+                    elif isfile(s) and not self.ignore(f, s):
 
-                    #     try:
-                    #         out = check_output(['git', '-C', p, 'remote', '-v']).decode()
-                    #         git = re.findall('https://.*github.com/[a-zA-Z0-9]+/[a-zA-Z0-9-_]+', out)[0]
-                    #     except IndexError:
-                    #         raise SystemExit(f'Bad index {p}')
-                    #     try:
-                    #         scr = open(path + '/git', 'w')
-                    #         scr.write(f'git init && git remote add origin && git pull {git}')
-                    #         scr.close()
-                    #     except OSError:
-                    #         raise SystemExit('Cannot write git command file')
+                        self.c_files += 1
+                        self.progress(self.c_files, self.t_files, r_dir)
+                        conn.put(s, remotepath=self.dest_dir+r_dir, preserve_mtime=True)
+
+                    elif isfile(s) and self.ignore(f, s):
+                        self.c_files += 1
+                    else:
+                        self.c_files += sum([len(f) for r, d, f in walk(s)])
 
     def parse_path(self, path):
         if path == 'external':
@@ -168,17 +178,14 @@ class Backup():
         elif path == 'code':
             path = 'd:\\Users\\nik\\Documents\\CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
         elif path.startswith('./'):
-            if platform == 'win32':
-                path = getcwd() + '\\' + path[2:]
-            else:
-                path = getcwd() + '/' + path[2:]
+            path = getcwd() + self.slash + path[2:]
         elif path.startswith('.'):
             path = getcwd()
         return path
 
     def ignore(self, name, path):
         folders = ['node_modules', '__pycache__', '.vs', '.vscode', '_others']
-        files = ['git']
+        files = ['gitp']
         if isdir(path):
             if name in folders:
                 return True
@@ -194,7 +201,8 @@ class Backup():
 
         percents = round(100.0 * count / float(total), 2)
         bar = '#' * filled_len + '.' * (bar_len - filled_len)
-        stdout.write('\x1b[2K')
+        if platform != 'win32':
+            stdout.write('\x1b[2K')
         stdout.write('%s\n\r' % (status))
         stdout.write('[%s] %s%s \r' % (bar, percents, '%'))
         stdout.flush()
