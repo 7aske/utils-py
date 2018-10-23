@@ -10,11 +10,12 @@ import re
 from shutil import copy2, rmtree
 from sys import argv, platform, stdout
 from subprocess import call, check_output, STDOUT, Popen, PIPE
+from pathlib import Path
 
 
 class Backup():
-    src_dir = 'd:\\Users\\nik\\Documents\\CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
-    dest_dir = 'f:\\ExternalDisk' if platform == 'win32' else '/media/nik/ExternalDisk'
+    src_dir = str(Path.home()) + '\\Documents\\CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
+    dest_dir = 'd:\\ExternalDisk' if platform == 'win32' else '/media/nik/ExternalDisk'
     username = ''
     hostname = ''
     password = ''
@@ -174,9 +175,9 @@ class Backup():
         elif path == 'pi':
             path = '/home/pi/Documents'
         elif path == 'dropbox':
-            path = 'd:\\Users\\nik\\Dropbox' if platform == 'win32' else '/home/nik/Dropbox'
+            path = str(Path.home()) + '\\Dropbox' if platform == 'win32' else '/home/nik/Dropbox'
         elif path == 'code':
-            path = 'd:\\Users\\nik\\Documents\\CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
+            path = str(Path.home()) + '\\Documents\\CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
         elif path.startswith('./'):
             path = getcwd() + self.slash + path[2:]
         elif path.startswith('.'):
@@ -203,7 +204,7 @@ class Backup():
         bar = '#' * filled_len + '.' * (bar_len - filled_len)
         if platform != 'win32':
             stdout.write('\x1b[2K')
-        stdout.write('%s\n\r' % (status))
+        #stdout.write('%s\n\r' % (status))
         stdout.write('[%s] %s%s \r' % (bar, percents, '%'))
         stdout.flush()
 
