@@ -185,8 +185,8 @@ class Backup():
         return path
 
     def ignore(self, name, path):
-        folders = ['node_modules', '__pycache__', '.vs', '.vscode', '_others']
-        files = ['gitp']
+        folders = ['node_modules', '__pycache__', '.vs', '.vscode', '_others', '.idea']
+        files = ['gitp', 'git']
         if isdir(path):
             if name in folders:
                 return True
