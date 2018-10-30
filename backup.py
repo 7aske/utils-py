@@ -1,4 +1,3 @@
-
 import atexit
 from distutils.dir_util import mkpath
 from filecmp import cmp
@@ -15,7 +14,7 @@ from pathlib import Path
 
 class Backup():
     src_dir = str(Path.home()) + '\\Documents\\CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
-    dest_dir = 'd:\\ExternalDisk' if platform == 'win32' else '/media/nik/ExternalDisk'
+    dest_dir = 'p:' if platform == 'win32' else '/media/nik/External_Disk'
     username = ''
     hostname = ''
     password = ''
@@ -59,7 +58,8 @@ class Backup():
             if 'pi' in argv:
                 self.hostname = input('Hostname:')
                 self.username = input('Username:')
-                self.password = getpass.win_getpass('Password:') if platform == 'win32' else getpass.unix_getpass('Password:')
+                self.password = getpass.win_getpass('Password:') if platform == 'win32' else getpass.unix_getpass(
+                    'Password:')
                 self.t_files = sum([len(f) for r, d, f in walk(self.src_dir)])
                 self.make_dest_dir_network()
                 self.backup_network(self.src_dir)
@@ -150,7 +150,7 @@ class Backup():
                                 scr = open(gitp, 'w')
                                 scr.write(f'git init && git remote add origin && git pull {git}')
                                 scr.close()
-                                conn.put(gitp, remotepath=self.dest_dir+r_dir[:-4]+'/gitp')
+                                conn.put(gitp, remotepath=self.dest_dir + r_dir[:-4] + '/gitp')
                             except OSError:
                                 raise SystemExit('Cannot write git command file')
                         else:
@@ -162,7 +162,7 @@ class Backup():
 
                         self.c_files += 1
                         self.progress(self.c_files, self.t_files, r_dir)
-                        conn.put(s, remotepath=self.dest_dir+r_dir, preserve_mtime=True)
+                        conn.put(s, remotepath=self.dest_dir + r_dir, preserve_mtime=True)
 
                     elif isfile(s) and self.ignore(f, s):
                         self.c_files += 1
@@ -171,7 +171,7 @@ class Backup():
 
     def parse_path(self, path):
         if path == 'external':
-            path = 'f:\\ExternalDisk' if platform == 'win32' else '/media/nik/ExternalDisk'
+            path = 'p:' if platform == 'win32' else '/media/nik/ExternalDisk'
         elif path == 'pi':
             path = '/home/pi/Documents'
         elif path == 'dropbox':
@@ -196,7 +196,7 @@ class Backup():
 
         return False
 
-    def progress(self,  count, total, status=''):
+    def progress(self, count, total, status=''):
         bar_len = 60
         filled_len = int(round(bar_len * count / float(total)))
 
@@ -204,7 +204,7 @@ class Backup():
         bar = '#' * filled_len + '.' * (bar_len - filled_len)
         if platform != 'win32':
             stdout.write('\x1b[2K')
-        #stdout.write('%s\n\r' % (status))
+        # stdout.write('%s\n\r' % (status))
         stdout.write('[%s] %s%s \r' % (bar, percents, '%'))
         stdout.flush()
 
