@@ -9,7 +9,6 @@ import re
 from shutil import copy2, rmtree
 from sys import argv, platform, stdout
 from subprocess import check_output
-from pathlib import Path
 import json
 
 
