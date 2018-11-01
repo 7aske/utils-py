@@ -1,0 +1,29 @@
+{
+  "win32": {
+    "external": "p:",
+    "code": "c:\\Users\\nik\\Documents\\CODE",
+    "dropbox": "c:\\Users\\nik\\Dropbox"
+  },
+  "linux": {
+    "external": "/media/nik/External_Disk",
+    "code": "/home/nik/Documents/CODE",
+    "dropbox": "/home/nik/Dropbox"
+  },
+  "remote": {
+    "username":"",
+    "hostname":"192.168.1.2",
+    "dest":"/home/pi/Documents"
+  },
+  "ignore_files": [
+    "gitp",
+    "git"
+  ],
+  "ignore_folders": [
+    "node_modules",
+    "__pycache__",
+    ".vs",
+    ".vscode",
+    "_others",
+    ".idea"
+  ]
+}

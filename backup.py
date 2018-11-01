@@ -2,29 +2,34 @@ import atexit
 from distutils.dir_util import mkpath
 from filecmp import cmp
 import getpass
-from os.path import exists, join, normpath, isdir, isfile, getmtime
-from os import mkdir, getcwd, listdir, stat, remove, walk, devnull
+from os.path import exists, join, isdir, isfile, getmtime
+from os import mkdir, getcwd, listdir, remove, walk
 import pysftp as sftp
 import re
 from shutil import copy2, rmtree
 from sys import argv, platform, stdout
-from subprocess import call, check_output, STDOUT, Popen, PIPE
+from subprocess import check_output
 from pathlib import Path
+import json
 
 
-class Backup():
-    src_dir = str(Path.home()) + '\\Documents\\CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
-    dest_dir = 'p:' if platform == 'win32' else '/media/nik/External_Disk'
+class Backup:
+    src_dir = ''
+    dest_dir = ''
     username = ''
     hostname = ''
     password = ''
-    address = '192.168.1.5'
     t_files = 0
     c_files = 0
     slash = '\\' if platform == 'win32' else '/'
+    settings = {}
 
     def __init__(self):
-
+        with open('settings.json') as f:
+            self.settings = json.load(f)
+        self.src_dir = self.settings[platform]["code"]
+        self.dest_dir = self.settings[platform]["external"]
+        self.hostname = self.settings["remote"]["hostname"]
         answer = ''
         possible_answers = ['Y', 'y', 'N', 'n']
 
@@ -47,17 +52,26 @@ class Backup():
         if not exists(self.src_dir) or not isdir(self.src_dir):
             raise SystemExit('Invalid source dir')
 
-        if 'pi' in argv:
+        if 'remote' in argv:
             self.dest_dir = self.dest_dir.replace('\\', '/')
 
         print(f'Source      {self.src_dir} \nDestination {self.dest_dir}')
         while not answer in possible_answers:
             answer = input('Proceed? (Y/N): ')
+
         if answer == 'y' or answer == 'Y':
 
-            if 'pi' in argv:
-                self.hostname = input('Hostname:')
-                self.username = input('Username:')
+            if 'remote' in argv:
+                if len(self.settings["remote"]["hostname"]) == 0:
+                    self.hostname = input('Hostname:')
+                else:
+                    self.hostname = self.settings["remote"]["hostname"]
+
+                if len(self.settings["remote"]["hostname"]) == 0:
+                    self.username = input('Username:')
+                else:
+                    self.username = self.settings["remote"]["username"]
+
                 self.password = getpass.win_getpass('Password:') if platform == 'win32' else getpass.unix_getpass(
                     'Password:')
                 self.t_files = sum([len(f) for r, d, f in walk(self.src_dir)])
@@ -84,8 +98,11 @@ class Backup():
 
             if isdir(s):
                 if not exists(r_dir):
-                    print(r_dir)
-                    rmtree(s)
+                    try:
+                        print(r_dir)
+                        rmtree(s)
+                    except WindowsError as e:
+                        print("Error deleting: %s" % r_dir)
                 else:
                     self.rm_old(s)
             elif isfile(s):
@@ -171,13 +188,13 @@ class Backup():
 
     def parse_path(self, path):
         if path == 'external':
-            path = 'p:' if platform == 'win32' else '/media/nik/ExternalDisk'
-        elif path == 'pi':
-            path = '/home/pi/Documents'
+            path = self.settings[platform][path]
         elif path == 'dropbox':
-            path = str(Path.home()) + '\\Dropbox' if platform == 'win32' else '/home/nik/Dropbox'
+            path = self.settings[platform][path]
         elif path == 'code':
-            path = str(Path.home()) + '\\Documents\\CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
+            path = self.settings[platform][path]
+        elif path == 'remote':
+            path = self.settings["remote"]["dest"]
         elif path.startswith('./'):
             path = getcwd() + self.slash + path[2:]
         elif path.startswith('.'):
@@ -185,8 +202,8 @@ class Backup():
         return path
 
     def ignore(self, name, path):
-        folders = ['node_modules', '__pycache__', '.vs', '.vscode', '_others', '.idea']
-        files = ['gitp', 'git']
+        folders = self.settings["ignore_folders"]
+        files = self.settings["ignore_files"]
         if isdir(path):
             if name in folders:
                 return True
