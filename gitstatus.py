@@ -15,6 +15,9 @@ class Status:
         with open("settings.json") as f:
             self.settings = load(f)
         self.src_dir = self.settings[platform]["code"]
+        self.check()
+
+    def check(self):
 
         for rf in listdir(self.src_dir):
             rf_abs = self.src_dir + self.slash + rf
@@ -28,11 +31,12 @@ class Status:
                     out = str(check_output(f"git -C \"{f}\" status", stderr=STDOUT))
                 except Exception as e:
                     out = str(e.output)
-                if "Changes not staged for commit" in out:
+                if not "Your branch is up to date" or "Changes not staged" in out:
                     print("Not up-to-date")
                     print(f)
                 else:
                     print("Up-to-date")
+
 
 
 if __name__ == "__main__":
