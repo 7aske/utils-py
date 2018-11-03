@@ -32,20 +32,23 @@ class Fetch:
                     if isdir(gf):
                         if ".git" in listdir(gf):
                             self.repo_list.append(gf)
-
         for repo in self.repo_list:
             p = Popen(["git", "-C", repo, "fetch"], stderr=PIPE, stdout=PIPE)
             self.proc_list.append(p)
+
+        dialog_out = "\n"
         c = 0
         for p in self.proc_list:
             out = str(p.stdout.read())
 
             if len(out) > 3:
-                print(self.repo_list[c])
+                dialog_out += self.repo_list[c] + "\n"
                 self.counter += 1
             c += 1
-        print("Repositories to pull: %d" % self.counter)
 
+        dialog_out += "\nRepositories to pull: %d" % self.counter
+
+        print(dialog_out)
     #
     # def check_errors(self, str):
     #     errors = ["Changes to be committed", "Changes not staged for commit", "Untracked files"]
