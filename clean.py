@@ -5,7 +5,7 @@ from os.path import isdir, isfile, join, dirname
 from json import load
 
 
-class Prune:
+class Cleaner:
     path = ""
     slash = '\\' if platform == 'win32' else '/'
     settings = {}
@@ -31,17 +31,17 @@ class Prune:
         else:
             raise SystemExit('Usage: <dir> <sub_dir>')
 
-        print('Prune folder ' + self.path)
+        print('Clean folder ' + self.path)
         answer = ''
         possible_answers = ['Y', 'y', 'N', 'n']
 
-        while not answer in possible_answers:
+        while answer not in possible_answers:
             answer = input('Proceed? (Y/N): ')
 
         if answer == 'y' or answer == 'Y':
-            self.prune(self.path)
+            self.clean(self.path)
 
-    def prune(self, path):
+    def clean(self, path):
 
         for f in listdir(path):
             p = join(path, f)
@@ -52,7 +52,7 @@ class Prune:
                     rmtree(p)
 
                 else:
-                    self.prune(p)
+                    self.clean(p)
 
             elif isfile(p):
                 if self.ignore(f, p):
@@ -88,4 +88,4 @@ class Prune:
 
 
 if __name__ == '__main__':
-    prune = Prune()
+    cleaner = Cleaner()
