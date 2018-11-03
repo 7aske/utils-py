@@ -1,14 +1,19 @@
 from sys import argv, platform
-from os import listdir, getcwd, remove, getcwd
+from os import listdir, remove, getcwd
 from shutil import rmtree
-from os.path import isdir, isfile, join
+from os.path import isdir, isfile, join, dirname
+from json import load
 
 
 class Prune:
-    path = 'c:\\Users\\nik\\Documents\\CODE\\' if platform == 'win32' else '/home/nikola/Documents/CODE/'
+    path = ""
     slash = '\\' if platform == 'win32' else '/'
+    settings = {}
 
     def __init__(self):
+        with open(join(dirname(__file__), "settings.json")) as f:
+            self.settings = load(f)
+        self.path = self.settings[platform]["code"]
         if len(argv) == 3:
             if argv[1] == 'code':
                 self.path = self.parse_path(argv[1]) + self.slash + argv[2]
@@ -24,10 +29,17 @@ class Prune:
             raise SystemExit('Usage: <dir> <sub_dir>')
 
         else:
-            self.path = getcwd()
+            raise SystemExit('Usage: <dir> <sub_dir>')
 
-        print('Pruning folder ' + self.path)
-        self.prune(self.path)
+        print('Prune folder ' + self.path)
+        answer = ''
+        possible_answers = ['Y', 'y', 'N', 'n']
+
+        while not answer in possible_answers:
+            answer = input('Proceed? (Y/N): ')
+
+        if answer == 'y' or answer == 'Y':
+            self.prune(self.path)
 
     def prune(self, path):
 
@@ -61,13 +73,13 @@ class Prune:
 
     def parse_path(self, path):
         if path == 'external':
-            path = 'p:' if platform == 'win32' else '/media/nik/ExternalDisk'
-        elif path == 'pi':
-            path = '/home/pi/Documents'
+            path = self.settings[platform][path]
         elif path == 'dropbox':
-            path = 'c:\\Users\\nik\\Dropbox' if platform == 'win32' else '/home/nik/Dropbox'
+            path = self.settings[platform][path]
         elif path == 'code':
-            path = 'c:\\Users\\nik\\Documents\\CODE' if platform == 'win32' else '/home/nik/Documents/CODE'
+            path = self.settings[platform][path]
+        elif path == 'remote':
+            path = self.settings["remote"]["dest"]
         elif path.startswith('./'):
             path = getcwd() + self.slash + path[2:]
         elif path.startswith('.'):

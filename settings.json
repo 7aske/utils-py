@@ -1,8 +1,8 @@
 {
   "win32": {
     "external": "p:",
-    "code": "c:\\Users\\nik\\Documents\\CODE",
-    "dropbox": "c:\\Users\\nik\\Dropbox"
+    "code": "C:\\Users\\nik\\Documents\\CODE",
+    "dropbox": "C:\\Users\\nik\\Dropbox"
   },
   "linux": {
     "external": "/media/nik/External_Disk",
@@ -12,7 +12,8 @@
   "remote": {
     "username":"nik",
     "hostname":"192.168.1.99",
-    "dest":"c:\\Users\\nik\\Documents\\CODE"
+    "dest":"/D:\\Users\\nik\\Documents",
+    "platform":"win32"
   },
   "ignore_files": [
     "gitp",

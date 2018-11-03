@@ -2,14 +2,15 @@ import atexit
 from distutils.dir_util import mkpath
 from filecmp import cmp
 import getpass
-from os.path import exists, join, isdir, isfile, getmtime
+from os.path import exists, join, isdir, isfile, getmtime, join, dirname
 from os import mkdir, getcwd, listdir, remove, walk
 import pysftp as sftp
+from pysftp import CnOpts
 import re
 from shutil import copy2, rmtree
 from sys import argv, platform, stdout
 from subprocess import check_output
-import json
+from json import load
 
 
 class Backup:
@@ -24,8 +25,8 @@ class Backup:
     settings = {}
 
     def __init__(self):
-        with open('settings.json') as f:
-            self.settings = json.load(f)
+        with open(join(dirname(__file__), "settings.json")) as f:
+            self.settings = load(f)
         self.src_dir = self.settings[platform]["code"]
         self.dest_dir = self.settings[platform]["external"]
         self.hostname = self.settings["remote"]["hostname"]
@@ -51,8 +52,8 @@ class Backup:
         if not exists(self.src_dir) or not isdir(self.src_dir):
             raise SystemExit('Invalid source dir')
 
-        if 'remote' in argv:
-            self.dest_dir = self.dest_dir.replace('\\', '/')
+        # if 'remote' in argv:
+        #     self.dest_dir = self.dest_dir.replace('\\', '/')
 
         print(f'Source      {self.src_dir} \nDestination {self.dest_dir}')
         while not answer in possible_answers:
@@ -66,7 +67,7 @@ class Backup:
                 else:
                     self.hostname = self.settings["remote"]["hostname"]
 
-                if len(self.settings["remote"]["hostname"]) == 0:
+                if len(self.settings["remote"]["username"]) == 0:
                     self.username = input('Username:')
                 else:
                     self.username = self.settings["remote"]["username"]
@@ -88,7 +89,6 @@ class Backup:
     def rm_old(self, path):
         for f in listdir(path):
             s = join(path, f)
-            r_dir = ''
 
             if platform == 'win32':
                 r_dir = self.src_dir + s[len(self.dest_dir):]
@@ -147,12 +147,18 @@ class Backup:
                 self.c_files += sum([len(f) for r, d, f in walk(s)])
 
     def backup_network(self, path):
-        with sftp.Connection(self.hostname, username=self.username, password=self.password) as conn:
+        opts = CnOpts()
+        opts.hostkeys = None
+        with sftp.Connection(self.hostname, username=self.username, password=self.password, cnopts=opts) as conn:
             with conn.cd(self.dest_dir):
                 for f in listdir(path):
                     s = join(path, f)
-                    d = self.dest_dir + s[self.get_padding(s):].replace('\\', '/')
-                    r_dir = d[len(self.dest_dir) - len(d):].replace('\\', '/')
+                    d = self.dest_dir + s[self.get_padding(s):]
+                    if self.settings["remote"]["platform"] == "linux":
+                        d.replace("\\", "/")
+                    r_dir = d[len(self.dest_dir) - len(d):]
+                    if self.settings["remote"]["platform"] == "linux":
+                        r_dir.replace("\\", "/")
                     if isdir(s) and not self.ignore(f, s):
                         if f == '.git':
                             self.c_files += sum([len(f) for r, d, f in walk(s)])
@@ -170,14 +176,15 @@ class Backup:
                             except OSError:
                                 raise SystemExit('Cannot write git command file')
                         else:
-                            if not conn.exists(self.dest_dir + r_dir):
-                                conn.mkdir(self.dest_dir + r_dir)
+                            folder = self.dest_dir + r_dir
+                            if not conn.exists(folder.replace("\\", "/")):
+                                conn.mkdir(folder)
                             self.backup_network(s)
 
                     elif isfile(s) and not self.ignore(f, s):
 
                         self.c_files += 1
-                        self.progress(self.c_files, self.t_files, r_dir)
+                        self.progress(self.c_files, self.t_files)
                         conn.put(s, remotepath=self.dest_dir + r_dir, preserve_mtime=True)
 
                     elif isfile(s) and self.ignore(f, s):
