@@ -2,7 +2,7 @@ import atexit
 from distutils.dir_util import mkpath
 from filecmp import cmp
 import getpass
-from os.path import exists, join, isdir, isfile, getmtime, join, dirname
+from os.path import exists, isdir, isfile, getmtime, join, dirname, basename
 from os import mkdir, getcwd, listdir, remove, walk
 import pysftp as sftp
 from pysftp import CnOpts
@@ -25,38 +25,36 @@ class Backup:
     settings = {}
 
     def __init__(self):
-        with open(join(dirname(__file__), "settings.json")) as f:
-            self.settings = load(f)
-        self.src_dir = self.settings[platform]["code"]
-        self.dest_dir = self.settings[platform]["external"]
-        self.hostname = self.settings["remote"]["hostname"]
+        try:
+            with open(join(dirname(__file__), "settings.json")) as f:
+                self.settings = load(f)
+        except OSError:
+            print("Cannot open settings file")
+            self.src_dir = self.parse_path("code")
+            self.dest_dir = self.parse_path("external")
+
         answer = ''
         possible_answers = ['Y', 'y', 'N', 'n']
-
         if len(argv) == 4:
-            if argv[1] == 'code':
-                self.src_dir = f'{self.parse_path(argv[1])}{self.slash}{argv[2]}'
-                self.dest_dir = f'{self.parse_path(argv[3])}{self.slash}CODE{self.slash}{argv[2]}'
-            else:
-                raise SystemExit('Invalid path')
-
+            self.src_dir = self.parse_path(argv[1])
+            self.dest_dir = join(self.parse_path(argv[2]), basename(self.src_dir), argv[3])
         elif len(argv) == 3:
             self.src_dir = self.parse_path(argv[1])
-            self.dest_dir = f'{self.parse_path(argv[2])}{self.slash}{self.get_root(self.src_dir)}'
-
+            self.dest_dir = join(self.parse_path(argv[2]), basename(self.src_dir))
         elif len(argv) == 2:
-            self.dest_dir = f'{self.parse_path(argv[1])}{self.slash}{self.get_root(self.src_dir)}'
-
+            self.src_dir = self.settings[platform]["code"]
+            self.dest_dir = join(self.parse_path(argv[1]), basename(self.src_dir))
+        elif len(argv) == 1:
+            self.src_dir = self.settings[platform]["code"]
+            self.dest_dir = join(self.settings[platform]["external"], basename(self.src_dir))
         else:
             raise SystemExit('Usage: <src> [dest]')
+
         if not exists(self.src_dir) or not isdir(self.src_dir):
             raise SystemExit('Invalid source dir')
 
-        # if 'remote' in argv:
-        #     self.dest_dir = self.dest_dir.replace('\\', '/')
-
         print(f'Source      {self.src_dir} \nDestination {self.dest_dir}')
-        while not answer in possible_answers:
+        while answer not in possible_answers:
             answer = input('Proceed? (Y/N): ')
 
         if answer == 'y' or answer == 'Y':
@@ -84,7 +82,7 @@ class Backup:
                 self.backup(self.src_dir)
                 self.rm_old(self.dest_dir)
         else:
-            SystemExit('Bye!')
+            raise SystemExit('Bye!')
 
     def rm_old(self, path):
         for f in listdir(path):
@@ -194,18 +192,17 @@ class Backup:
 
     def parse_path(self, path):
         if path == 'external':
-            path = self.settings[platform][path]
+            return self.settings[platform][path]
         elif path == 'dropbox':
-            path = self.settings[platform][path]
+            return self.settings[platform][path]
         elif path == 'code':
-            path = self.settings[platform][path]
+            return self.settings[platform][path]
         elif path == 'remote':
-            path = self.settings["remote"]["dest"]
+            return self.settings["remote"]["dest"]
         elif path.startswith('./'):
-            path = getcwd() + self.slash + path[2:]
+            return getcwd() + self.slash + path[2:]
         elif path.startswith('.'):
-            path = getcwd()
-        return path
+            return getcwd()
 
     def ignore(self, name, path):
         folders = self.settings["ignore_folders"]
@@ -231,14 +228,8 @@ class Backup:
         stdout.write('[%s] %s%s \r' % (bar, percents, '%'))
         stdout.flush()
 
-    def get_root(self, path):
-        return re.findall('[a-zA-Z-_]*$', path)[0]
-
     def get_padding(self, path):
         return len(self.src_dir) - len(path)
-
-    def get_padding_pi(self):
-        return len(self.src_dir) - len(self.get_root(self.src_dir))
 
     def make_dest_dir_network(self):
         with sftp.Connection(self.hostname, username=self.username, password=self.password) as conn:
