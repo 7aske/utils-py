@@ -124,7 +124,7 @@ class Backup:
             elif isfile(s) and not self.ignore(f, s):
 
                 self.c_files += 1
-                self.progress(self.c_files, self.t_files, r_dir)
+                self.progress(self.c_files, self.t_files)
 
                 if not exists(d):
                     try:
@@ -200,7 +200,7 @@ class Backup:
         elif path == 'remote':
             return self.settings["remote"]["dest"]
         elif path.startswith('./'):
-            return getcwd() + self.slash + path[2:]
+            return join(getcwd(), path[2:])
         elif path.startswith('.'):
             return getcwd()
 
@@ -216,16 +216,13 @@ class Backup:
 
         return False
 
-    def progress(self, count, total, status=''):
-        bar_len = 60
+    def progress(self, count, total):
+        bar_len = 50
         filled_len = int(round(bar_len * count / float(total)))
-
+        status = total - count
         percents = round(100.0 * count / float(total), 2)
         bar = '#' * filled_len + '.' * (bar_len - filled_len)
-        if platform != 'win32':
-            stdout.write('\x1b[2K')
-        # stdout.write('%s\n\r' % (status))
-        stdout.write('[%s] %s%s \r' % (bar, percents, '%'))
+        stdout.write('[%s] %.2f%s Files: %s \r' % (bar, percents, '%', status))
         stdout.flush()
 
     def get_padding(self, path):

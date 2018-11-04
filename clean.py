@@ -73,18 +73,17 @@ class Cleaner:
 
     def parse_path(self, path):
         if path == 'external':
-            path = self.settings[platform][path]
+            return self.settings[platform][path]
         elif path == 'dropbox':
-            path = self.settings[platform][path]
+            return self.settings[platform][path]
         elif path == 'code':
-            path = self.settings[platform][path]
+            return self.settings[platform][path]
         elif path == 'remote':
-            path = self.settings["remote"]["dest"]
+            return self.settings["remote"]["dest"]
         elif path.startswith('./'):
-            path = getcwd() + self.slash + path[2:]
+            return join(getcwd(), path[2:])
         elif path.startswith('.'):
-            path = getcwd()
-        return path
+            return getcwd()
 
 
 if __name__ == '__main__':
