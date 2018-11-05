@@ -11,6 +11,7 @@ class Fetch:
     countern = 0
     repo_list = []
     proc_list = []
+    pull_list = []
     src = ""
 
     def __init__(self):
@@ -34,34 +35,70 @@ class Fetch:
             rf_abs = join(path, rf)
 
             if ".git" in listdir(rf_abs):
-                self.git_fetch(rf_abs)
+                self.repo_list.append(rf_abs)
+                self.git(rf_abs, "fetch")
 
             else:
                 for gf in listdir(rf_abs):
                     gf_abs = join(rf_abs, gf)
                     if isdir(gf_abs):
                         if ".git" in listdir(gf_abs):
-                            self.git_fetch(gf_abs)
+                            self.repo_list.append(gf_abs)
+                            self.git(gf_abs, "fetch")
 
         dialog_out = "\n"
 
+        dialog_out += self.fetch_out(dialog_out)
+
+        dialog_out += "\nRepositories checked: %d\n" % self.countern
+        if self.counter > 0:
+            dialog_out += "Repositories to pull: %d\n" % self.counter
+        print(dialog_out)
+
+        if self.counter > 0:
+            self.pull()
+
+    def pull(self):
+        # Reseting for git pull
+        for p in self.proc_list:
+            p.kill()
+        self.proc_list = []
+        dialog_out = "\n"
+        self.counter = 0
+        # ----------------------
+
+        answers = ["Y", "y", "N", "n"]
+        answer = ""
+        while answer not in answers:
+            answer = input("Do you want to pull %d repositories?\n(Y/N): " % self.counter)
+        if answer == "Y" or answer == "y":
+            for repo in self.repo_list:
+                self.git(repo, "pull")
+            dialog_out += self.pull_out(dialog_out)
+            dialog_out += "\nRepositories pulled: %d\n" % self.counter
+            print(dialog_out)
+
+    def pull_out(self, text):
+        for i, p in enumerate(self.proc_list):
+            out = str(p.stdout.read())
+            if "Already up to date" not in out:
+                text += self.repo_list[i] + "\n"
+                self.counter += 1
+            self.countern += 1
+        return text
+
+    def fetch_out(self, text):
         for i, p in enumerate(self.proc_list):
             out = str(p.stdout.read())
             if len(out) > 3:
-                dialog_out += self.repo_list[i] + "\n"
+                text += self.repo_list[i] + "\n"
+                self.pull_list.append(self.repo_list[i])
                 self.counter += 1
             self.countern += 1
+        return text
 
-        dialog_out += "\nRepositories checked: %d\n" % self.countern
-
-        if self.counter > 0:
-            dialog_out += "Repositories to pull: %d\n" % self.counter
-
-        print(dialog_out)
-
-    def git_fetch(self, path):
-        self.repo_list.append(path)
-        p = Popen(["git", "-C", path, "fetch"], stderr=PIPE, stdout=PIPE)
+    def git(self, path, action):
+        p = Popen(["git", "-C", path, action], stderr=PIPE, stdout=PIPE)
         self.proc_list.append(p)
 
     def parse_path(self, path):
