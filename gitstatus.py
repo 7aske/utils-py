@@ -14,10 +14,13 @@ class Status:
     src = ""
 
     def __init__(self):
+
         with open(join(dirname(__file__), "settings.json")) as f:
             self.settings = load(f)
-        if len(argv) == 2:
-            self.src = self.parse_path(argv[1])
+        if len(argv) == 3:
+            self.src = join(self.settings[platform]["code"], argv[1], argv[2])
+        elif len(argv) == 2:
+            self.src = join(self.settings[platform]["code"], argv[1])
         else:
             self.src = self.settings[platform]["code"]
 
@@ -27,22 +30,19 @@ class Status:
 
         for rf in listdir(path):
             rf_abs = join(path, rf)
-            if ".git" in listdir(rf_abs):
-                self.git_status(rf_abs)
+            if isdir(rf_abs):
+                if rf == ".git":
+                    self.git_status(path)
+                elif ".git" in listdir(rf_abs):
+                    self.git_status(rf_abs)
 
-            for gf in listdir(rf_abs):
-                gf_abs = join(rf_abs, gf)
-                if isdir(gf_abs):
-                    if ".git" in listdir(gf_abs):
-                        self.git_status(gf_abs)
+                for gf in listdir(rf_abs):
+                    gf_abs = join(rf_abs, gf)
+                    if isdir(gf_abs):
+                        if ".git" in listdir(gf_abs):
+                            self.git_status(gf_abs)
 
-        dialog_out = "\n"
-        for i, p in enumerate(self.proc_list):
-            out = str(p.stdout.read())
-            if self.check_errors(out):
-                dialog_out += "%s \n" % self.repo_list[i]
-                self.counter += 1
-            self.countern += 1
+        dialog_out = self.proc_out("\n")
 
         dialog_out += "\nRepositories checked: %d\n" % self.countern
         if self.counter > 0:
@@ -53,6 +53,15 @@ class Status:
         self.repo_list.append(path)
         p = Popen(["git", "-C", path, "status"], stderr=PIPE, stdout=PIPE)
         self.proc_list.append(p)
+
+    def proc_out(self, text):
+        for i, p in enumerate(self.proc_list):
+            out = str(p.stdout.read())
+            if self.check_errors(out):
+                text += "%s \n" % self.repo_list[i]
+                self.counter += 1
+            self.countern += 1
+        return text
 
     def check_errors(self, s):
         errors = ["Changes to be committed", "Changes not staged for commit", "Untracked files"]
