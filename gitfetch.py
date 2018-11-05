@@ -117,4 +117,4 @@ class Fetch:
 
 
 if __name__ == "__main__":
-    fetch = Fetch()
+    Fetch()
