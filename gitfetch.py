@@ -6,7 +6,7 @@ from subprocess import Popen, PIPE
 
 
 class Fetch:
-    settings: {}
+    settings = {}
     counter = 0
     countern = 0
     repo_list = []
