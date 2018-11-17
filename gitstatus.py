@@ -30,7 +30,7 @@ class Status:
 
         for rf in listdir(path):
             rf_abs = join(path, rf)
-            if isdir(rf_abs):
+            if isdir(rf_abs) and not self.ignore(rf,rf_abs):
                 if rf == ".git":
                     self.git_status(path)
                 elif ".git" in listdir(rf_abs):
@@ -67,6 +67,13 @@ class Status:
         errors = ["Changes to be committed", "Changes not staged for commit", "Untracked files"]
         for error in errors:
             if error in s:
+                return True
+        return False
+
+    def ignore(self,name, path):
+        ignore_folders = ["_test", "_others"]
+        if isdir(path):
+            if name in ignore_folders:
                 return True
         return False
 
