@@ -7,12 +7,12 @@ from threading import Thread
 from win32gui import GetWindowText, GetForegroundWindow, SetPixel, GetDC
 from win32api import RGB, GetSystemMetrics
 
-run = False
+running = False
 pause = False
 breaks = [Key.ctrl_l, Key.alt_l, Key.shift_l]
 macros = {
     "prot": ['q', 'e', (0, 1), (0, -1), Key.tab],
-    "bear": ['q', Key.tab, (0, 1)],
+    "bear": ['q', Key.tab, (0, -1)],
     "ret": ['f', 'e', 'q', Key.tab, (0, -1), (0, 1)]
 }
 
@@ -36,10 +36,10 @@ class ScriptController(Thread):
                 pause = True
 
             if key.char == "t":
-                global run
-                run = not run
+                global running
+                running = not running
 
-                if run:
+                if running:
                     print("\nRun")
 
                 else:
@@ -87,7 +87,7 @@ class KeyPresser(Thread):
     macro = ""
 
     def __init__(self, m):
-        print(macros[macro])
+        print(macros[m])
         self.macro = m
         Thread.__init__(self)
         self.daemon = True
@@ -101,15 +101,14 @@ class KeyPresser(Thread):
 
     def run(self):
         while True:
-            global run, pause
+            global run, pause, macros
 
-            if run:
+            if running:
                 self.indicator()
 
                 if not pause:
-                    for macro in macros:
+                    for macro in macros[self.macro]:
                         if isinstance(macro, tuple):
-                            print(macro[0], macro[1])
                             self.mc.scroll(macro[0], macro[1])
 
                         else:
@@ -118,14 +117,15 @@ class KeyPresser(Thread):
 
                         sleep(0.1)
                 sleep(self.gcd)
+            else:
+                sleep(2)
 
 
 if __name__ == "__main__":
-    macro = input(f"Spec {[key for key in macros.keys()]}: ")
-    try:
-        index = int(macro) - 1
-        macro = list(macros.keys())[index]
-        KeyPresser(macro)
-    except ValueError:
-        KeyPresser(macro)
+    answer = ""
+    answer = input(f"Spec {[key for key in macros.keys()]}: ")
+    answers = list(macros.keys())
+    while answer not in answers:
+        answer = input(f"Spec {[key for key in macros.keys()]}: ")
+    KeyPresser(answer)
     ScriptController()
