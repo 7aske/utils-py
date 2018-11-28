@@ -10,7 +10,11 @@ from win32api import RGB, GetSystemMetrics
 run = False
 pause = False
 breaks = [Key.ctrl_l, Key.alt_l, Key.shift_l]
-macros = ['q', 'e', (0, 1), (0, -1), Key.tab]
+macros = {
+    "prot": ['q', 'e', (0, 1), (0, -1), Key.tab],
+    "bear": ['q', Key.tab, (0, 1)],
+    "ret": ['f', 'e', 'q', Key.tab, (0, -1), (0, 1)]
+}
 
 
 class ScriptController(Thread):
@@ -74,20 +78,23 @@ class ScriptController(Thread):
             sleep(1)
 
 
-class Keypresser(Thread):
+class KeyPresser(Thread):
     gcd = 1
     kc = KeyboardController()
     mc = MouseController()
     c = RGB(255, 0, 0)
     dc = GetDC(0)
+    macro = ""
 
-    def __init__(self):
+    def __init__(self, m):
+        print(macros[macro])
+        self.macro = m
         Thread.__init__(self)
         self.daemon = True
         self.start()
 
     def indicator(self):
-        width = int(GetSystemMetrics(0)/2)
+        width = int(GetSystemMetrics(0) / 2)
         for i in range(width - 12, width + 12):
             for j in range(24):
                 SetPixel(self.dc, i, j, self.c)
@@ -114,5 +121,11 @@ class Keypresser(Thread):
 
 
 if __name__ == "__main__":
-    Keypresser()
+    macro = input(f"Spec {[key for key in macros.keys()]}: ")
+    try:
+        index = int(macro) - 1
+        macro = list(macros.keys())[index]
+        KeyPresser(macro)
+    except ValueError:
+        KeyPresser(macro)
     ScriptController()
