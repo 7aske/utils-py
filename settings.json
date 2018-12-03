@@ -11,7 +11,7 @@
   },
   "remote": {
     "username":"nik",
-    "hostname":"192.168.1.99",
+    "hostname":"192.168.1.202",
     "dest":"/D:\\Users\\nik\\Documents",
     "platform":"win32"
   },
