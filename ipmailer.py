@@ -25,7 +25,8 @@ class Mailer:
 
         self.password = getpass.unix_getpass("Enter password: ") if platform == "linux" else getpass.win_getpass(
             "Enter password: ")
-        self.noip_password = getpass.unix_getpass("Enter No-ip password: ") if platform == "linux" else getpass.win_getpass(
+        self.noip_password = getpass.unix_getpass(
+            "Enter No-ip password: ") if platform == "linux" else getpass.win_getpass(
             "Enter No-ip password: ")
 
         self.ip = self.get_ip()
@@ -59,7 +60,7 @@ class Mailer:
         print("Mail sent")
 
     def update_dns(self):
-        update_cmd = f'noipy -u {self.noip_username} -p {self.noip_password} -n {self.noip_hostname} --provider noip'
+        update_cmd = 'noipy -u ' + self.noip_username + ' -p ' + self.noip_password + ' -n ' + self.noip_hostname + ' --provider noip'
         out = system(update_cmd)
         raise SystemExit()
         print("DNS Updated")
