@@ -4,13 +4,18 @@ from requests.exceptions import ConnectionError
 from threading import Timer
 from sys import argv, platform
 from time import strftime, gmtime
-from getpass import unix_getpass, win_getpass
+from subprocess import check_output
+import getpass
+from os import system
 
 
-class Mailer():
+class Mailer:
     ip = ''
     username = '7aske.mailer.pi@gmail.com'
     password = ''
+    noip_username = 'ntasic7@gmail.com'
+    noip_password = ''
+    noip_hostname = '7aske.servebeer.com'
     to = 'ntasic7@gmail.com'
     delay = 60
 
@@ -18,7 +23,11 @@ class Mailer():
         if len(argv) == 2:
             self.delay = int(argv[1])
 
-        self.password = unix_getpass("Enter password: ") if platform == "linux" else win_getpass("Enter password: ")
+        self.password = getpass.unix_getpass("Enter password: ") if platform == "linux" else getpass.win_getpass(
+            "Enter password: ")
+        self.noip_password = getpass.unix_getpass("Enter No-ip password: ") if platform == "linux" else getpass.win_getpass(
+            "Enter No-ip password: ")
+
         self.ip = self.get_ip()
         self.check_ip_change()
 
@@ -38,6 +47,7 @@ class Mailer():
         if new_ip != self.ip:
             self.ip = new_ip
             self.send_email(self.ip, time)
+            self.update_dns()
 
     def send_email(self, ip, time):
         text = "New IP address is: %s\nTime of change: %s" % (ip, time)
@@ -47,6 +57,12 @@ class Mailer():
         server.sendmail(self.username, self.to, text)
         server.quit()
         print("Mail sent")
+
+    def update_dns(self):
+        update_cmd = f'noipy -u {self.noip_username} -p {self.noip_password} -n {self.noip_hostname} --provider noip'
+        out = system(update_cmd)
+        raise SystemExit()
+        print("DNS Updated")
 
 
 if __name__ == "__main__":
