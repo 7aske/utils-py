@@ -2,10 +2,10 @@ from os import listdir, getcwd, remove
 from os.path import join, splitext
 from PIL import Image
 from sys import argv
-from instapy_cli import client as instapy
-from threading import Timer
+from instapy_cli import client
 from time import sleep
 from random import randrange
+import getpass
 
 
 class Stack:
@@ -42,7 +42,7 @@ class Main:
         possible_answers = ["Y", "N"]
         answer = ""
         self.username = input("Username: ")
-        self.password = input("Password: ")
+        self.password = getpass.unix_getpass("Password: ")
         if len(argv) == 3:
             self.timeout = int(argv[2])
             self.photos_dir = join(getcwd(), argv[1])
@@ -83,12 +83,12 @@ class Main:
         caption = self.regular_caption
         if self.is_bnw(photo):
             caption += "\n\n" + self.bnw_caption
-        with instapy(self.username, self.password) as cli:
-            try:
-                cli.upload(photo, caption)
-                remove(photo)
-            except Exception as e:
-                self.photos.push(photo)
+        # TODO: FIX DIS
+        with client(self.username, self.password) as cli:
+            print(photo)
+            cli.upload(photo, caption)
+            # remove(photo)
+            # self.photos.push(photo)
 
     def get_timeout(self):
         val1 = self.timeout
