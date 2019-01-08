@@ -35,7 +35,7 @@ class Main:
     regular_caption = "#vscofilm #vscodaily #vscocam #vsco #vscogood #vscoph #vsco_rs  #vscogrid #vscomasters #vscobalkan #photography #fuji #explore #street #streetphotography #urban #urbanexploring #people #photojournalism"
     photos = Stack()
     photos_dir = "#blackandwhitephotography #blackandwhite #streetphotography_bw #bw #bnw #bnwmood #bnw_captures #bnwphotography"
-    timeout = 43200
+    timeout = 0
 
     def __init__(self):
 
@@ -45,9 +45,12 @@ class Main:
         self.password = input("Password: ")
         if len(argv) == 3:
             self.timeout = int(argv[2])
+            self.photos_dir = join(getcwd(), argv[1])
         elif len(argv) == 2:
+            self.timeout = 43200
             self.photos_dir = join(getcwd(), argv[1])
         else:
+            self.timeout = 43200
             self.photos_dir = getcwd()
         while answer.upper() not in possible_answers:
             print("Start uploading from:\n%s" % self.photos_dir)
