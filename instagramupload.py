@@ -86,13 +86,16 @@ class Main:
         # TODO: FIX DIS
         with client(self.username, self.password) as cli:
             print(photo)
-            cli.upload(photo, caption)
-            # remove(photo)
-            # self.photos.push(photo)
+            try:
+                cli.upload(photo, caption)
+                remove(photo)
+            except Exception as e:
+                pass
+
 
     def get_timeout(self):
         val1 = self.timeout
-        val2 = self.timeout + randrange(-1 * (self.timeout / 10), self.timeout / 10)
+        val2 = self.timeout + randrange(int(-1 * (self.timeout / 10)), int(self.timeout / 10) + 1)
         return randrange(min(val1, val2), max(val1, val2))
 
     def is_bnw(self, path):
@@ -109,15 +112,14 @@ class Main:
                 new_img.paste(img, pos)
                 new_img.save(path)
 
-        if pix["T"] == 0:
-            for i in range(int(w / 4)):
-                for j in range(int(h / 4)):
-                    r, g, b = img.getpixel((i * 4, j * 4))
-                    if r != g != b:
-                        pix["C"] += 1
-                    else:
-                        pix["B"] += 1
-                    pix["T"] += 1
+        for i in range(int(w / 4)):
+            for j in range(int(h / 4)):
+                r, g, b = img.getpixel((i * 4, j * 4))
+                if r != g != b:
+                    pix["C"] += 1
+                else:
+                    pix["B"] += 1
+                pix["T"] += 1
         try:
             out = pix["C"] / pix["T"]
         except ZeroDivisionError:
