@@ -3,3 +3,4 @@ gitp
 git
 .vscode
 venv
+*.ini
