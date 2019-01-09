@@ -64,7 +64,7 @@ class Main:
                 print(len(self.photos))
                 if len(self.photos) == 0:
                     self.update_photos()
-                    print("Timeout: " + min(3600,self.timeout))
+                    print("Timeout: " + str(min(3600,self.timeout)))
                     sleep(min(3600,self.timeout))
                 else:
                     self.upload_photo()
