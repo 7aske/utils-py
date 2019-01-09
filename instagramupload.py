@@ -4,7 +4,7 @@ from PIL import Image
 from sys import argv
 from instapy_cli import client
 from time import sleep
-from random import randrange
+from random import randrange, choice
 import getpass
 
 
@@ -64,7 +64,7 @@ class Main:
                 else:
                     self.upload_photo()
                     s = self.get_timeout()
-                    print(s)
+                    print("Timeout: " + str(s))
                     sleep(s)
         else:
             SystemExit("Bye")
@@ -85,25 +85,22 @@ class Main:
             caption += "\n\n" + self.bnw_caption
         # TODO: FIX DIS
         with client(self.username, self.password) as cli:
-            print(photo)
             try:
                 cli.upload(photo, caption)
                 remove(photo)
             except Exception as e:
                 pass
 
-
     def get_timeout(self):
-        val1 = self.timeout
-        val2 = self.timeout + randrange(int(-1 * (self.timeout / 10)), int(self.timeout / 10) + 1)
-        return randrange(min(val1, val2), max(val1, val2))
+        offset = choice([-1, 1]) * randrange(int(self.timeout / 20), int(self.timeout / 10) + 1)
+        print(offset)
+        return self.timeout + offset
 
     def is_bnw(self, path):
         img = Image.open(path)
         pix = {"B": 0, "C": 0, "T": 0}
         w, h = img.size
         if w < h:
-            print(w / h)
             if w / h < 0.8:
                 blank = Image.new("RGB", (h, h), color=(255, 255, 255))
                 new_img = blank.copy()
@@ -124,6 +121,7 @@ class Main:
             out = pix["C"] / pix["T"]
         except ZeroDivisionError:
             out = 0
+        print(out)
         return out < 0.2
 
 
