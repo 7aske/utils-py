@@ -38,14 +38,14 @@ class Main:
     timeout = 0
     watch = False
     def __init__(self):
-
+        if "--watch" in argv:
+            self.watch = True
+            print("Starting in watch mode.")
         possible_answers = ["Y", "N"]
         answer = ""
         self.username = input("Username: ")
         self.password = getpass.unix_getpass("Password: ")
-        if "--watch" in argv:
-            self.watch = True
-            print("Starting in watch mode.")
+
         if len(argv) == 3:
             self.timeout = int(argv[2])
             self.photos_dir = join(getcwd(), argv[1])
