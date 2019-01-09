@@ -46,7 +46,7 @@ class Main:
         self.username = input("Username: ")
         self.password = getpass.unix_getpass("Password: ")
 
-        if len(argv) == 3:
+        if len(argv) in [3, 4]:
             self.timeout = int(argv[2])
             self.photos_dir = join(getcwd(), argv[1])
         elif len(argv) == 2:
