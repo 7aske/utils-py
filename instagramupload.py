@@ -36,13 +36,16 @@ class Main:
     photos = Stack()
     photos_dir = ""
     timeout = 0
-
+    watch = False
     def __init__(self):
 
         possible_answers = ["Y", "N"]
         answer = ""
         self.username = input("Username: ")
         self.password = getpass.unix_getpass("Password: ")
+        if "--watch" in argv:
+            self.watch = True
+            print("Starting in watch mode.")
         if len(argv) == 3:
             self.timeout = int(argv[2])
             self.photos_dir = join(getcwd(), argv[1])
@@ -76,7 +79,7 @@ class Main:
                 self.photos.push(join(self.photos_dir, photo))
 
         if len(self.photos) == 0:
-            raise SystemExit("Empty photos folder!")
+            pass
 
     def upload_photo(self):
         photo = self.photos.pop()
@@ -89,7 +92,10 @@ class Main:
                 cli.upload(photo, caption)
                 remove(photo)
             except Exception as e:
-                pass
+                if self.watch:
+                    pass
+                else:
+                    raise SystemExit("Folder Empty")
 
     def get_timeout(self):
         offset = choice([-1, 1]) * randrange(int(self.timeout / 20), int(self.timeout / 10) + 1)
