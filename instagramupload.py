@@ -31,10 +31,10 @@ class Stack:
 class Main:
     username = ""
     password = ""
-    bnw_caption = ""
+    bnw_caption = "#blackandwhitephotography #blackandwhite #streetphotography_bw #bw #bnw #bnwmood #bnw_captures #bnwphotography"
     regular_caption = "#vscofilm #vscodaily #vscocam #vsco #vscogood #vscoph #vsco_rs  #vscogrid #vscomasters #vscobalkan #photography #fuji #explore #street #streetphotography #urban #urbanexploring #people #photojournalism"
     photos = Stack()
-    photos_dir = "#blackandwhitephotography #blackandwhite #streetphotography_bw #bw #bnw #bnwmood #bnw_captures #bnwphotography"
+    photos_dir = ""
     timeout = 0
 
     def __init__(self):
