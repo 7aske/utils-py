@@ -148,7 +148,10 @@ class Main:
                 cli.upload(photo, caption)
                 remove(photo)
             except Exception as e:
-                pass
+                self.__photos.push(photo)
+                print("Retrying photo upload in 60 seconds.")
+                sleep(60)
+                self.upload_photo()
 
     def get_timeout(self):
         offset = choice([-1, 1]) * randrange(int(self._timeout / 20), int(self._timeout / 10) + 1)
