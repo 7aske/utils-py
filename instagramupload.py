@@ -7,6 +7,7 @@ from time import sleep
 from random import randrange, choice
 import getpass
 import configparser
+from datetime import datetime as dt
 
 
 class Stack:
@@ -33,11 +34,12 @@ class Main:
     __username = ""
     __password = ""
     __watch = False
+    __bedtime = False
     __photos = Stack()
     __photos_dir = ""
     __config = configparser.ConfigParser()
     __config_path = join(getcwd(), "config.ini")
-    _bnw_caption = "#blackandwhitephotography #blackandwhite #streetphotography_bw #bw #bnw #bnwmood #bnw_captures #bnwphotography"
+    _bnw_caption = "#blackandwhitephotography #blackandwhite #streetphotography_bw #bw #bnw #bnwmood #bnw_captures #bnwphotography #bnw_mood #bnw_captures #bnwphotography"
     _regular_caption = "#vscofilm #vscodaily #vscocam #vsco #vscogood #vscoph #vsco_rs #vscogrid #vscomasters #vscobalkan #photography #fuji #explore #street #streetphotography #urban #urbanexploring #people #photojournalism"
     _timeout = 0
 
@@ -47,6 +49,11 @@ class Main:
             self.__watch = True
             print("Starting in watch mode.")
             argv.remove("--watch")
+        if "--bedtime" in argv:
+            print("Starting in no bedtime mode.")
+            self.__watch = True
+            argv.remove("--bedtime")
+
         possible_answers = ["Y", "N"]
         answer = ""
         if exists(self.__config_path):
@@ -61,7 +68,13 @@ class Main:
             self.__username = self.__config["credentials"]["username"]
             self.__password = self.__config["credentials"]["password"]
             print("Account: %s" % self.__username)
+            if self.__username == "":
+                raise SystemExit("Invalid config.ini username.")
+            if self.__password == "":
+                self.__password = getpass.unix_getpass("Password: ")
+
             print("Password: %s" % "".join(["*" for _ in self.__password]))
+
         else:
             self.__username = input("Username: ")
             self.__password = getpass.unix_getpass("Password: ")
@@ -138,16 +151,25 @@ class Main:
                     self._regular_caption += line
 
     def upload_photo(self):
+        if 1 < dt.now().hour < 9 and self.__bedtime:
+            print("Bed time, skipping upload")
+            pass
         photo = self.__photos.pop()
         caption = self._regular_caption
         if self.is_bnw(photo):
             caption += "\n\n" + self._bnw_caption
-        with client(self.__username, self.__password) as cli:
             try:
-                print(caption)
-                cli.upload(photo, caption)
-                remove(photo)
-            except Exception as e:
+                with client(self.__username, self.__password) as cli:
+                    print(caption)
+                    cli.upload(photo, caption)
+                    remove(photo)
+            except IOError as e:
+                if "The password you entered is incorrect." in str(e):
+                    self.__config["credentials"]["password"] = ""
+                    with open(self.__config_path, "w") as configfile:
+                        self.__config.write(configfile)
+                        configfile.close()
+                    raise SystemExit("Password The password you entered is incorrect. Please try again.")
                 self.__photos.push(photo)
                 print("Retrying photo upload in 60 seconds.")
                 sleep(60)
