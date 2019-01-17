@@ -38,10 +38,10 @@ class Main:
     __photos = Stack()
     __photos_dir = ""
     __config = configparser.ConfigParser()
-    __config_path = join(getcwd(), "config.ini")
+    __config_path = join(getcwd(), "instagramupload.ini")
     _bnw_caption = "#blackandwhitephotography #blackandwhite #streetphotography_bw #bw #bnw #bnwmood #bnw_captures #bnwphotography #bnw_mood #bnw_captures #bnwphotography"
     _regular_caption = "#vscofilm #vscodaily #vscocam #vsco #vscogood #vscoph #vsco_rs #vscogrid #vscomasters #vscobalkan #photography #fuji #explore #street #streetphotography #urban #urbanexploring #people #photojournalism"
-    _timeout = 0
+    _timeout = 43200
 
     def __init__(self):
 
@@ -69,7 +69,7 @@ class Main:
             self.__password = self.__config["credentials"]["password"]
             print("Account: %s" % self.__username)
             if self.__username == "":
-                raise SystemExit("Invalid config.ini username.")
+                raise SystemExit("Invalid instagramupload.ini username.")
             if self.__password == "":
                 self.__password = getpass.unix_getpass("Password: ")
 
@@ -100,7 +100,7 @@ class Main:
             else:
                 self._timeout = 43200
         except Exception:
-            raise SystemExit("Usage: -f <folder> -t <timeout> [--watch]")
+            raise SystemExit("Usage: -f <folder> -t <timeout> [--watch] [--bedtime]")
 
         if not exists(self.__photos_dir):
             raise SystemExit("Photos directory doesn't exist.\n%s" % self.__photos_dir)

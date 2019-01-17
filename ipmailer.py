@@ -1,36 +1,46 @@
 import smtplib
 from requests import get
 from requests.exceptions import ConnectionError
-from threading import Timer
 from sys import argv, platform
-from time import strftime, gmtime
-from subprocess import check_output
+from time import strftime, gmtime, sleep
+import configparser
 import getpass
-from os import system
+from os import system, getcwd
+from os.path import join, exists
 
 
 class Mailer:
-    ip = ''
-    username = '7aske.mailer.pi@gmail.com'
+    username = ''
     password = ''
-    noip_username = 'ntasic7@gmail.com'
+    send_to = ''
+    noip_username = ''
     noip_password = ''
-    noip_hostname = '7aske.servebeer.com'
-    to = 'ntasic7@gmail.com'
+    noip_hostname = ''
+    ip = ''
     delay = 60
+    config = configparser.ConfigParser()
+    config_path = join(getcwd(), "ipmailer.ini")
 
     def __init__(self):
-        if len(argv) == 2:
-            self.delay = int(argv[1])
+        if len(argv) == 3 and argv[1] == "-t":
+            try:
+                self.delay = int(argv[2])
+            except ValueError:
+                self.delay = 60
+                print("Invalid timer value, defaulting to 60s")
 
-        self.password = getpass.unix_getpass("Enter password: ") if platform == "linux" else getpass.win_getpass(
-            "Enter password: ")
-        self.noip_password = getpass.unix_getpass(
-            "Enter No-ip password: ") if platform == "linux" else getpass.win_getpass(
-            "Enter No-ip password: ")
+        if exists(self.config_path):
+            self.config.read(self.config_path)
+            if not self.validate_config():
+                raise SystemExit("Bad config")
 
-        self.ip = self.get_ip()
-        self.check_ip_change()
+        else:
+            self.update_config()
+
+        while True:
+            self.ip = self.get_ip()
+            self.check_ip_change()
+            sleep(self.delay)
 
     def get_ip(self):
         try:
@@ -40,8 +50,6 @@ class Mailer:
         return ip
 
     def check_ip_change(self):
-        timer = Timer(self.delay, self.check_ip_change)
-        timer.start()
         new_ip = self.get_ip()
         time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
         print("IP:%s\nTime:%s" % (new_ip, time))
@@ -55,16 +63,54 @@ class Mailer:
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(self.username, self.password)
-        server.sendmail(self.username, self.to, text)
+        server.sendmail(self.username, self.send_to, text)
         server.quit()
         print("Mail sent")
 
     def update_dns(self):
         update_cmd = 'noipy -u ' + self.noip_username + ' -p ' + self.noip_password + ' -n ' + self.noip_hostname + ' --provider noip'
         out = system(update_cmd)
-        raise SystemExit()
         print("DNS Updated")
+
+    def validate_config(self):
+        if "noip" not in self.config or "nodemailer" not in self.config:
+            return False
+        elif "username" not in self.config["noip"] or "password" not in self.config["noip"] or "hostname" not in \
+                self.config["noip"]:
+            return False
+        elif "username" not in self.config["nodemailer"] or "password" not in self.config[
+            "nodemailer"] or "send_to" not in self.config["nodemailer"]:
+            return False
+        else:
+            return True
+
+    def update_config(self):
+        self.username = input("Mailer username: ")
+        self.password = getpass.unix_getpass("Enter password: ") if platform == "linux" else getpass.win_getpass(
+            "Enter password: ")
+        self.send_to = input("Send to e-mail: ")
+        self.noip_username = input("No-ip username: ")
+        self.noip_password = getpass.unix_getpass(
+            "Enter No-ip password: ") if platform == "linux" else getpass.win_getpass(
+            "Enter No-ip password: ")
+        self.noip_hostname = input("No-ip hostname: ")
+        self.config["nodemailer"] = {
+            "username": self.username,
+            "password": self.password,
+            "send_to": self.send_to
+        }
+        self.config["noip"] = {
+            "username": self.noip_username,
+            "password": self.noip_password,
+            "hostname": self.noip_hostname
+        }
+        with open(self.config_path, "w") as configfile:
+            self.config.write(configfile)
+            configfile.close()
 
 
 if __name__ == "__main__":
-    Mailer()
+    try:
+        Mailer()
+    except KeyboardInterrupt:
+        pass
