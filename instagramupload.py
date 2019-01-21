@@ -1,5 +1,5 @@
 from os import listdir, getcwd, remove
-from os.path import join, splitext, exists
+from os.path import join, splitext, exists, isabs
 from PIL import Image
 from sys import argv
 from instapy_cli import client
@@ -8,6 +8,7 @@ from random import randrange, choice
 import getpass
 import configparser
 from datetime import datetime as dt
+from datetime import timedelta
 
 
 class Stack:
@@ -85,11 +86,13 @@ class Main:
             with open(self.__config_path, "w") as configfile:
                 self.__config.write(configfile)
                 configfile.close()
-
         try:
-
             if "-f" in argv:
-                self.__photos_dir = join(getcwd(), argv[argv.index("-f") + 1])
+                path = argv[argv.index("-f") + 1]
+                self.__photos_dir = path if isabs(path) else join(getcwd(), path)
+            elif "folder" in self.__config["config"]:
+                path = self.__config["config"]["folder"]
+                self.__photos_dir = path if isabs(path) else join(getcwd(), path)
             else:
                 self.__photos_dir = getcwd()
             if "-t" in argv:
@@ -97,13 +100,23 @@ class Main:
                     self._timeout = int(argv[argv.index("-t") + 1])
                 except ValueError:
                     self._timeout = 43200
+            elif "timeout" in self.__config["config"]:
+                self._timeout = int(self.__config["config"]["timeout"])
             else:
                 self._timeout = 43200
+
+            self.__config["config"] = {
+                "timeout": self._timeout,
+                "folder": self.__photos_dir
+            }
+
         except Exception:
             raise SystemExit("Usage: -f <folder> -t <timeout> [--watch] [--bedtime]")
-
         if not exists(self.__photos_dir):
             raise SystemExit("Photos directory doesn't exist.\n%s" % self.__photos_dir)
+        with open(self.__config_path, "w") as configfile:
+            self.__config.write(configfile)
+            configfile.close()
 
         while answer.upper() not in possible_answers:
             print("Start uploading from: '%s'" % self.__photos_dir, end="")
@@ -115,13 +128,16 @@ class Main:
                 print("Photos - %d" % len(self.__photos))
                 if len(self.__photos) == 0:
                     self.update_photos()
-                    print("Timeout - %d" % min(3600, self._timeout))
-                    sleep(min(3600, self._timeout))
+                    s = min(3600, self._timeout)
+                    n = dt.now() + timedelta(seconds=s)
+                    print("Next refresh - %s" % n.strftime("%d/%m %H:%M:%S"))
+                    sleep(s)
                 else:
                     self.update_tags()
                     self.upload_photo()
                     s = self.get_timeout()
-                    print("Timeout - %d" % s)
+                    n = dt.now() + timedelta(seconds=s)
+                    print("Next upload - %s" % n.strftime("%d/%m %H:%M:%S"))
                     sleep(s)
         else:
             raise SystemExit("Bye")
@@ -160,7 +176,7 @@ class Main:
             caption += "\n\n" + self._bnw_caption
         try:
             with client(self.__username, self.__password) as cli:
-                print(caption)
+                print(photo)
                 cli.upload(photo, caption)
                 remove(photo)
         except IOError as e:
@@ -215,4 +231,7 @@ class Main:
 
 
 if __name__ == '__main__':
-    Main()
+    try:
+        Main()
+    except KeyboardInterrupt:
+        raise SystemExit("Bye")
