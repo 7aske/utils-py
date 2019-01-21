@@ -9,7 +9,9 @@ import getpass
 import configparser
 from datetime import datetime as dt
 from datetime import timedelta
-
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 class Stack:
     def __init__(self):
@@ -45,6 +47,10 @@ class Main:
     _regular_caption = "#vscofilm #vscodaily #vscocam #vsco #vscogood #vscoph #vsco_rs #vscogrid #vscomasters #vscobalkan #photography #fuji #explore #street #streetphotography #urban #urbanexploring #people #photojournalism"
     _timeout = 43200
     __dt_format = "%Y/%d/%m %H:%M:%S"
+    __mail = False
+    __mail_username = ""
+    __mail_password = ""
+    __mail_to = ""
 
     def __init__(self):
 
@@ -120,6 +126,13 @@ class Main:
             self.__config.write(configfile)
             configfile.close()
 
+        self.__mail = self.validate_mail_config()
+        print(self.__mail)
+        if self.__mail:
+            self.__mail_username = self.__config["mailer"]["username"]
+            self.__mail_password = self.__config["mailer"]["password"]
+            self.__mail_to = self.__config["mailer"]["to"]
+
         while answer.upper() not in possible_answers:
             print("Start uploading from: '%s'" % self.__photos_dir, end="")
             print(" with timeout of '%d'" % self._timeout)
@@ -149,6 +162,13 @@ class Main:
                         with open(self.__next_upload, "w") as nextupload:
                             nextupload.write(n.strftime(self.__dt_format))
                             nextupload.close()
+                        if self.__mail:
+                            try:
+                                self.send_email(n.strftime(self.__dt_format))
+                                print("Mail sent")
+                            except Exception as e:
+                                print("Mail not sent")
+                                pass
                         sleep(s)
                     else:
                         newdate = date - dt.now()
@@ -175,11 +195,13 @@ class Main:
                 self._bnw_caption = ""
                 for line in bnw.readlines():
                     self._bnw_caption += line
+                bnw.close()
         if exists(regular_path):
-            with open(bnw_path, "r") as regular_path:
+            with open(regular_path, "r") as regular:
                 self._regular_caption = ""
-                for line in regular_path.readlines():
+                for line in regular.readlines():
                     self._regular_caption += line
+                regular.close()
 
     def upload_photo(self):
         if 1 < dt.now().hour < 9 and self.__bedtime:
@@ -209,6 +231,39 @@ class Main:
     def get_timeout(self):
         offset = choice([-1, 1]) * randrange(int(self._timeout / 20), int(self._timeout / 10) + 1)
         return self._timeout + offset
+
+    def validate_mail_config(self):
+        if "mailer" in self.__config:
+            if "to" in self.__config["mailer"] and "username" in self.__config["mailer"] and "password" in \
+                    self.__config["mailer"]:
+                return True
+        return False
+
+    def send_email(self, nextupload):
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = "Instagram Upload"
+        msg['From'] = self.__mail_username
+        msg['To'] = self.__mail_to
+        html = """\
+        <html>
+          <head></head>
+          <body>
+            New photo uploaded on account <b><a href="https://instagram.com/{account}">{account}</a></b>.<br><br>
+            Next scheduled for: <u><b>{nextupload}</u></b>.<br><br>
+            Remaining photos: <b>{remaining}</b>.
+          </body>
+        </html>
+        """.format(account=self.__username, nextupload=nextupload, remaining=len(self.__photos))
+        text = ("Subject: Instagram Upload\n\nNew photo uploaded on account %s.\n\nNext scheduled for: %s.\nRemaining photos: %d." % (self.__username, nextupload, len(self.__photos)))
+        part1 = MIMEText(text, 'plain')
+        part2 = MIMEText(html, 'html')
+        msg.attach(part1)
+        msg.attach(part2)
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(self.__mail_username, self.__mail_password)
+        server.sendmail(self.__mail_username, self.__mail_to, msg.as_string())
+        server.quit()
 
     @staticmethod
     def is_bnw(path):
@@ -249,4 +304,4 @@ if __name__ == '__main__':
     try:
         Main()
     except KeyboardInterrupt:
-        raise SystemExit("Bye")
+        raise SystemExit("\nBye")
