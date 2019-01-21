@@ -40,9 +40,11 @@ class Main:
     __photos_dir = ""
     __config = configparser.ConfigParser()
     __config_path = join(getcwd(), "instagramupload.ini")
+    __next_upload = join(getcwd(), "nextupload")
     _bnw_caption = "#blackandwhitephotography #blackandwhite #streetphotography_bw #bw #bnw #bnwmood #bnw_captures #bnwphotography #bnw_mood #bnw_captures #bnwphotography"
     _regular_caption = "#vscofilm #vscodaily #vscocam #vsco #vscogood #vscoph #vsco_rs #vscogrid #vscomasters #vscobalkan #photography #fuji #explore #street #streetphotography #urban #urbanexploring #people #photojournalism"
     _timeout = 43200
+    __dt_format = "%Y/%d/%m %H:%M:%S"
 
     def __init__(self):
 
@@ -130,15 +132,28 @@ class Main:
                     self.update_photos()
                     s = min(3600, self._timeout)
                     n = dt.now() + timedelta(seconds=s)
-                    print("Next refresh - %s" % n.strftime("%d/%m %H:%M:%S"))
+                    print("Next refresh - %s" % n.strftime(self.__dt_format))
                     sleep(s)
                 else:
-                    self.update_tags()
-                    self.upload_photo()
-                    s = self.get_timeout()
-                    n = dt.now() + timedelta(seconds=s)
-                    print("Next upload - %s" % n.strftime("%d/%m %H:%M:%S"))
-                    sleep(s)
+                    date = dt.now()
+                    if exists(self.__next_upload):
+                        with open(self.__next_upload, "r") as nextupload:
+                            content = nextupload.read()
+                            date = dt.strptime(content, self.__dt_format)
+                    if dt.now() >= date:
+                        self.update_tags()
+                        self.upload_photo()
+                        s = self.get_timeout()
+                        n = dt.now() + timedelta(seconds=s)
+                        print("Next upload - %s" % n.strftime(self.__dt_format))
+                        with open(self.__next_upload, "w") as nextupload:
+                            nextupload.write(n.strftime(self.__dt_format))
+                            nextupload.close()
+                        sleep(s)
+                    else:
+                        newdate = date - dt.now()
+                        print("Waiting for scheduled upload")
+                        sleep(newdate.seconds + 1)
         else:
             raise SystemExit("Bye")
 
