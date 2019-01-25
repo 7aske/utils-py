@@ -15,6 +15,7 @@ class Main:
     data = {"TOTAL": 0}
     copy = False
     write = True
+    scan = False
     default_source = "_INGEST"
 
     def __init__(self):
@@ -24,6 +25,9 @@ class Main:
         if "--nowrite" in argv:
             self.write = False
             argv.remove("--nowrite")
+        if "--scan" in argv:
+            self.scan = True
+            argv.remove("--scan")
 
         if "-f" in argv:
             try:
@@ -56,25 +60,30 @@ class Main:
 
         if not self.write:
             print("Result writing disabled")
-        print("Started in [%s] mode" % ("COPY" if self.copy else "MOVE"))
-        print("Source:     \t" + self.source)
-        print("Destination:\t" + self.root)
-        answer = ""
-        possible_answers = ["Y", "y", "N", "n"]
-
-        while answer not in possible_answers:
-            answer = input("Scan for photos? (Y/N) ")
-        if answer.upper() == "Y":
+        if self.scan:
+            print("Started in scan mode")
+            self.list_photos(self.root)
+            self.scan_photos()
+        else:
+            print("Started in [%s] mode" % ("COPY" if self.copy else "MOVE"))
+            print("Source:     \t" + self.source)
+            print("Destination:\t" + self.root)
             answer = ""
-            self.list_photos(self.source)
+            possible_answers = ["Y", "y", "N", "n"]
+
             while answer not in possible_answers:
-                answer = input("%d photos found. Continue? (Y/N) " % len(self.photos))
+                answer = input("Scan for photos? (Y/N) ")
             if answer.upper() == "Y":
-                self.rename_photos()
+                answer = ""
+                self.list_photos(self.source)
+                while answer not in possible_answers:
+                    answer = input("%d photos found. Continue? (Y/N) " % len(self.photos))
+                if answer.upper() == "Y":
+                    self.rename_photos()
+                else:
+                    raise SystemExit("Bye")
             else:
                 raise SystemExit("Bye")
-        else:
-            raise SystemExit("Bye")
 
     def list_photos(self, path):
         for entry in listdir(path):
@@ -86,42 +95,31 @@ class Main:
                         ".RAF"):
                     self.photos.append(abs_path)
 
+    def scan_photos(self):
+        for photo in self.photos:
+            if self.source in photo:
+                continue
+            make, model, _, _, _ = self.get_exif(photo)
+
+            if make in self.data.keys():
+                if model in self.data[make].keys():
+                    self.data[make][model] += 1
+                else:
+                    self.data[make][model] = 1
+            else:
+                self.data[make] = {model: 1}
+
+            self.data["TOTAL"] += 1
+            self.progress_bar(self.data["TOTAL"])
+
+        print("\n" + str(self.data))
+        if self.write:
+            self.write_results()
+
     def rename_photos(self):
         for photo in self.photos:
-            _, ext = splitext(photo)
-            md = pyexiv2.ImageMetadata(photo)
-            try:
-                md.read()
-            except Exception as e:
-                raise SystemError(e)
 
-            datetime = str(dtime.now())
-            if "Exif.Photo.DateTimeDigitized" in md.exif_keys:
-                datetime = str(md["Exif.Photo.DateTimeDigitized"].value)
-            elif "Exif.Image.DateTime" in md.exif_keys:
-                datetime = str(md["Exif.Image.DateTime"].value)
-
-            make = "UNK-MAKE"
-            model = "UNK-MODEL"
-            if "Exif.Image.Make" in md.exif_keys:
-                make = str(md["Exif.Image.Make"].value)
-            if "Exif.Image.Model" in md.exif_keys:
-                model = str(md["Exif.Image.Model"].value)
-
-            make = sub(r"[,.]", "", make)
-            make = sub(r" ", "-", make).upper()
-            model = sub(r" ", "-", model).upper()
-            date = datetime.split(" ")[0]
-            time = datetime.split(" ")[1]
-            time = sub(r":", "-", time)
-
-            if make == "NIKON-CORPORATION" or make == "SONY-ERICSSON":
-                make = sub(r"-\w+", "", make)
-
-            if model == "FINEPIX-X100" or model == "COOLPIX-L5" or model == "NIKON-D3200" or model == "FINEPIX-X100S":
-                model = sub(r"\w+-", "", model)
-            elif model == "X-E1" or model == "MI-A1":
-                model = sub(r"-", "", model)
+            make, model, date, time, ext = self.get_exif(photo)
 
             file_name = "{date}_{time}_{model}{ext}".format(date=date, time=time, model=model, ext=ext.upper())
             folder_name = "{date}_{model}".format(date=date, model=model)
@@ -147,12 +145,61 @@ class Main:
         if self.write:
             self.write_results()
 
+    @staticmethod
+    def get_exif(photo):
+        _, ext = splitext(photo)
+        md = pyexiv2.ImageMetadata(photo)
+        try:
+            md.read()
+        except Exception as e:
+            raise SystemError(e)
+
+        datetime = str(dtime.now())
+        if "Exif.Photo.DateTimeDigitized" in md.exif_keys:
+            datetime = str(md["Exif.Photo.DateTimeDigitized"].value)
+        elif "Exif.Image.DateTime" in md.exif_keys:
+            datetime = str(md["Exif.Image.DateTime"].value)
+
+        make = "UNK-MAKE"
+        model = "UNK-MODEL"
+        if "Exif.Image.Make" in md.exif_keys:
+            make = str(md["Exif.Image.Make"].value)
+        if "Exif.Image.Model" in md.exif_keys:
+            model = str(md["Exif.Image.Model"].value)
+        if make == "NIKON-CORPORATION" or make == "SONY-ERICSSON":
+            make = sub(r"-\w+", "", make)
+
+        make = sub(r"[,.]", "", make)
+        make = sub(r" ", "-", make).upper()
+        model = sub(r" ", "-", model).upper()
+        date = datetime.split(" ")[0]
+        time = datetime.split(" ")[1]
+        time = sub(r":", "-", time)
+
+        if model == "FINEPIX-X100" or model == "COOLPIX-L5" or model == "NIKON-D3200" or model == "FINEPIX-X100S":
+            model = sub(r"\w+-", "", model)
+        elif model == "X-E1" or model == "MI-A1":
+            model = sub(r"-", "", model)
+
+        return make, model, date, time, ext
+
     def write_results(self):
-        # path = join(str(Path.home()), "ingest%s.txt" % str(dtime.now().date()).replace(" ", "", -1))
-        path = "ingest%s.txt" % str(dtime.now().date()).replace(" ", "", -1)
+        # path = join(str(Path.home()), "ingest_%s.txt" % str(dtime.now().date()).replace(" ", "", -1))
+        if self.scan:
+            path = "scan_%s.txt" % str(dtime.now().date()).replace(" ", "", -1)
+        else:
+            path = "ingest_%s.txt" % str(dtime.now().date()).replace(" ", "", -1)
         with open(path, "w") as f:
             for key in self.data.keys():
-                f.write("{key}: {value}\n".format(key=key, value=self.data[key]))
+                value = self.data[key]
+                if type(value) is dict:
+                    f.write(key + ":\n")
+                    for key2 in value.keys():
+                        f.write("\t{key}: {value}\n".format(key=key2, value=value[key2]))
+                else:
+                    f.write("{key}: {value}\n".format(key=key, value=value))
+                    if key == "TOTAL":
+                        f.write("\n")
             f.close()
 
     def safe_move(self, photo, file_path, count):
