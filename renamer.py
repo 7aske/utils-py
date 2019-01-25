@@ -1,7 +1,7 @@
 from os import getcwd, listdir, makedirs
-from os.path import join, isdir, splitext, exists
+from os.path import join, isdir, splitext, exists, isabs
 from re import sub
-from shutil import move
+from shutil import move, copy2
 from sys import argv, stdout
 from datetime import datetime as dtime
 from pathlib import Path
@@ -9,36 +9,72 @@ import pyexiv2
 
 
 class Main:
-    root = getcwd()
-    source = getcwd()
-    cwd = getcwd()
+    root = ""
+    source = ""
     photos = []
     data = {"TOTAL": 0}
+    copy = False
+    write = True
+    default_source = "_INGEST"
 
     def __init__(self):
-        if len(argv) == 2:
-            self.source = join(self.cwd, argv[1])
-        else:
-            self.source = join(self.cwd, "_INGEST")
+        if "--copy" in argv:
+            self.copy = True
+            argv.remove("--copy")
+        if "--nowrite" in argv:
+            self.write = False
+            argv.remove("--nowrite")
 
-        print("From:\t" + self.source)
-        print("To:  \t" + self.root)
+        if "-f" in argv:
+            try:
+                path = argv[argv.index("-f") + 1]
+                if isabs(path):
+                    self.source = path
+                else:
+                    self.source = join(getcwd(), path)
+            except Exception:
+                raise SystemExit("-f [path]")
+        else:
+            self.source = join(getcwd(), self.default_source)
+
+        if "-d" in argv:
+            try:
+                path = argv[argv.index("-d") + 1]
+                if isabs(path):
+                    self.root = join(getcwd(), path)
+                else:
+                    self.root = path
+            except Exception:
+                raise SystemExit("Usage: -d [path]")
+        else:
+            self.root = getcwd()
+
+        if not exists(self.source):
+            raise SystemExit("Invalid source folder")
+        if not exists(self.root):
+            raise SystemExit("Invalid destination folder")
+
+        if not self.write:
+            print("Result writing disabled")
+        print("Started in [%s] mode" % ("COPY" if self.copy else "MOVE"))
+        print("Source:     \t" + self.source)
+        print("Destination:\t" + self.root)
         answer = ""
         possible_answers = ["Y", "y", "N", "n"]
+
         while answer not in possible_answers:
-            answer = input("Are you sure? (Y/N) ")
+            answer = input("Scan for photos? (Y/N) ")
         if answer.upper() == "Y":
             answer = ""
             self.list_photos(self.source)
-            print("%d photos found. Continue?" % len(self.photos))
             while answer not in possible_answers:
-                answer = input("Are you sure? (Y/N) ")
+                answer = input("%d photos found. Continue? (Y/N) " % len(self.photos))
             if answer.upper() == "Y":
                 self.rename_photos()
             else:
-                SystemExit("Bye")
+                raise SystemExit("Bye")
         else:
-            SystemExit("Bye")
+            raise SystemExit("Bye")
 
     def list_photos(self, path):
         for entry in listdir(path):
@@ -65,12 +101,12 @@ class Main:
             elif "Exif.Image.DateTime" in md.exif_keys:
                 datetime = str(md["Exif.Image.DateTime"].value)
 
-            try:
+            make = "UNK-MAKE"
+            model = "UNK-MODEL"
+            if "Exif.Image.Make" in md.exif_keys:
                 make = str(md["Exif.Image.Make"].value)
+            if "Exif.Image.Model" in md.exif_keys:
                 model = str(md["Exif.Image.Model"].value)
-            except KeyError as e:
-                make = "UNK-MAKE"
-                model = "UNK-MODEL"
 
             make = sub(r"[,.]", "", make)
             make = sub(r" ", "-", make).upper()
@@ -82,7 +118,7 @@ class Main:
             if make == "NIKON-CORPORATION" or make == "SONY-ERICSSON":
                 make = sub(r"-\w+", "", make)
 
-            if model == "FINEPIX-X100" or model == "COOLPIX-L5" or model == "NIKON-D3200":
+            if model == "FINEPIX-X100" or model == "COOLPIX-L5" or model == "NIKON-D3200" or model == "FINEPIX-X100S":
                 model = sub(r"\w+-", "", model)
             elif model == "X-E1" or model == "MI-A1":
                 model = sub(r"-", "", model)
@@ -92,12 +128,13 @@ class Main:
             folder_path = join(self.root, make, model, folder_name)
             file_path = join(folder_path, file_name)
 
-            try:
+            if not exists(folder_path):
                 makedirs(folder_path)
-            except FileExistsError as e:
-                pass
 
-            self.safe_move(photo, file_path, 0)
+            if self.copy:
+                self.safe_copy(photo, file_path, 0)
+            else:
+                self.safe_move(photo, file_path, 0)
 
             if model in self.data.keys():
                 self.data[model] += 1
@@ -106,11 +143,14 @@ class Main:
             self.data["TOTAL"] += 1
             self.progress_bar(self.data["TOTAL"])
 
-        print(self.data)
-        self.save_results()
+        print("\n" + str(self.data))
+        if self.write:
+            self.write_results()
 
-    def save_results(self):
-        with open(join(str(Path.home()), "photos_%s.txt" % str(dtime.now().date()).replace(" ", "", -1)), "w") as f:
+    def write_results(self):
+        # path = join(str(Path.home()), "ingest%s.txt" % str(dtime.now().date()).replace(" ", "", -1))
+        path = "ingest%s.txt" % str(dtime.now().date()).replace(" ", "", -1)
+        with open(path, "w") as f:
             for key in self.data.keys():
                 f.write("{key}: {value}\n".format(key=key, value=self.data[key]))
             f.close()
@@ -119,16 +159,33 @@ class Main:
         if not exists(file_path):
             try:
                 move(photo, file_path)
-            except SystemError as e:
-                raise SystemError(e)
+            except Exception:
+                raise SystemError("Error moving %s to %s" % photo, file_path)
         else:
+            ext = file_path[-4:]
             if count == 0:
-                new_path = file_path[:-4] + str(count) + file_path[-4:]
+                new_path = file_path[:-4] + "-" + str(count) + ext
             else:
-                pad = len(str(abs(count)))
-                new_path = file_path[:-4 - pad] + str(count) + file_path[-4:]
+                pad = len(str(abs(count))) + 1
+                new_path = file_path[:-4 - pad] + "-" + str(count) + ext
             count += 1
             self.safe_move(photo, new_path, count)
+
+    def safe_copy(self, photo, file_path, count):
+        if not exists(file_path):
+            try:
+                copy2(photo, file_path)
+            except Exception:
+                raise SystemError("Error copying %s to %s" % photo, file_path)
+        else:
+            ext = file_path[-4:]
+            if count == 0:
+                new_path = file_path[:-4] + "-" + str(count) + ext
+            else:
+                pad = len(str(abs(count))) + 1
+                new_path = file_path[:-4 - pad] + "-" + str(count) + ext
+            count += 1
+            self.safe_copy(photo, new_path, count)
 
     def progress_bar(self, count):
         bar_len = 50
@@ -142,4 +199,7 @@ class Main:
 
 
 if __name__ == "__main__":
-    Main()
+    try:
+        Main()
+    except KeyboardInterrupt:
+        print("\nBye")
