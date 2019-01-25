@@ -236,7 +236,7 @@ class Main:
 
     def progress_bar(self, count):
         bar_len = 50
-        total_len = self.data["TOTAL"]
+        total_len = len(self.photos)
         filled_len = int(round(bar_len * count / float(total_len)))
         status = total_len - count
         percents = round(100.0 * count / float(total_len), 2)
