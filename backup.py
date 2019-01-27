@@ -1,16 +1,20 @@
 import atexit
-from distutils.dir_util import mkpath
 from filecmp import cmp
 import getpass
-from os.path import exists, isdir, isfile, getmtime, join, dirname, basename
-from os import mkdir, getcwd, listdir, remove, walk
+from os.path import exists, isdir, isfile, getmtime, join, basename, isabs
+from os import getcwd, listdir, remove, walk, makedirs, chmod
 import pysftp as sftp
 from pysftp import CnOpts
 import re
 from shutil import copy2, rmtree
-from sys import argv, platform, stdout
+from sys import argv, platform, stdout, warnoptions
 from subprocess import check_output
-from json import load
+import configparser
+from pathlib import Path
+import warnings
+
+if not warnoptions:
+    warnings.simplefilter("ignore")
 
 
 class Backup:
@@ -19,229 +23,331 @@ class Backup:
     username = ''
     hostname = ''
     password = ''
-    t_files = 0
-    c_files = 0
-    slash = '\\' if platform == 'win32' else '/'
-    settings = {}
+    files_total = 0
+    files_count = 0
+    config = configparser.ConfigParser()
+    config_path_home = join(str(Path.home()), "backup.ini")
+    config_path = join(getcwd(), "backup.ini")
+    remote = False
+    clean = False
 
     def __init__(self):
-        try:
-            with open(join(dirname(__file__), "settings.json")) as f:
-                self.settings = load(f)
-        except OSError:
-            print("Cannot open settings file")
-            self.src_dir = self.parse_path("code")
-            self.dest_dir = self.parse_path("external")
+        if "--remote" in argv:
+            self.remote = True
+        if "--clean" in argv:
+            self.clean = True
 
-        answer = ''
-        possible_answers = ['Y', 'y', 'N', 'n']
-        if len(argv) == 4:
-            self.src_dir = self.parse_path(argv[1])
-            self.dest_dir = join(self.parse_path(argv[2]), basename(self.src_dir), argv[3])
-        elif len(argv) == 3:
-            self.src_dir = self.parse_path(argv[1])
-            self.dest_dir = join(self.parse_path(argv[2]), basename(self.src_dir))
-        elif len(argv) == 2:
-            self.src_dir = self.settings[platform]["code"]
-            self.dest_dir = join(self.parse_path(argv[1]), basename(self.src_dir))
-        elif len(argv) == 1:
-            self.src_dir = self.settings[platform]["code"]
-            self.dest_dir = join(self.settings[platform]["external"], basename(self.src_dir))
-        else:
-            raise SystemExit('Usage: <src> [dest]')
+        if exists(self.config_path_home):
+            self.config.read(self.config_path_home)
+        elif exists(self.config_path):
+            self.config.read(self.config_path)
+
+        if exists(self.config_path_home) or exists(self.config_path):
+            if platform not in self.config.keys():
+                raise SystemExit("Invalid config file")
+            if "src" not in self.config[platform].keys() or "dest" not in self.config[platform].keys():
+                raise SystemExit("Invalid config file")
+            self.src_dir = self.config[platform]["src"]
+            dest_dir = self.config[platform]["dest"]
+            if dest_dir.endswith(basename(self.src_dir)):
+                self.dest_dir = dest_dir
+            else:
+                self.dest_dir = join(self.config[platform]["dest"], basename(self.src_dir))
+
+        if "-f" in argv:
+            try:
+                path = argv[argv.index("-f") + 1]
+
+                if isabs(path):
+                    self.src_dir = path
+                else:
+                    self.src_dir = join(getcwd(), self.format_path(path))
+
+                if "shortcuts" in self.config.keys():
+                    if path in self.config["shortcuts"]:
+                        self.src_dir = self.config["shortcuts"][path]
+            except IndexError:
+                print("Invalid source argument")
+
+        if "-d" in argv:
+            try:
+                path = argv[argv.index("-d") + 1]
+
+                if isabs(path):
+                    self.dest_dir = join(path, basename(self.src_dir))
+                else:
+                    self.dest_dir = join(getcwd(), self.format_path(path))
+
+                if "shortcuts" in self.config.keys():
+                    if path in self.config["shortcuts"]:
+                        self.dest_dir = join(self.config["shortcuts"][path], basename(self.src_dir))
+            except IndexError:
+                print("Invalid source argument")
+
+        if self.remote:
+            if "-d" not in argv:
+                self.src_dir = self.config[platform]["src"]
+                dest_dir = self.config["remote"]["dest"]
+
+                if dest_dir.endswith(basename(self.src_dir)):
+                    self.dest_dir = dest_dir
+                else:
+                    self.dest_dir = join(self.config["remote"]["dest"], basename(self.src_dir))
+
+            if len(self.config["remote"]["hostname"]) == 0:
+                self.hostname = input('Hostname:')
+            else:
+                self.hostname = self.config["remote"]["hostname"]
+
+            if len(self.config["remote"]["username"]) == 0:
+                self.username = input('Username:')
+                self.config["remote"]["username"] = self.username
+
+            else:
+                self.username = self.config["remote"]["username"]
+
+            if len(self.config["remote"]["password"]) == 0:
+                self.password = getpass.win_getpass('Password:') if platform == 'win32' else getpass.unix_getpass(
+                    'Password:')
+            else:
+                self.password = self.config["remote"]["password"]
 
         if not exists(self.src_dir) or not isdir(self.src_dir):
             raise SystemExit('Invalid source dir')
+        if len(self.dest_dir) == 0:
+            raise SystemExit('Invalid destination dir')
 
-        print(f'Source      {self.src_dir} \nDestination {self.dest_dir}')
+        if self.clean:
+            if "delete" not in self.config.keys():
+                raise SystemExit("Invalid delete config")
+            elif "files" not in self.config["delete"].keys() and "folders" not in self.config["delete"].keys():
+                raise SystemExit("Invalid delete config")
+            elif len(self.config["delete"]["files"]) == 0 and len(self.config["delete"]["folders"]) == 0:
+                raise SystemExit("Invalid delete config")
+
+        print(f'Source      {self.src_dir}')
+        if self.remote:
+            print(f'Destination {self.username}@{self.hostname}:{self.dest_dir}')
+        elif not self.clean:
+            print(f'Destination {self.dest_dir}')
+        elif self.clean:
+            print("Cleaning selected directory")
+        answer = ''
+        possible_answers = ['Y', 'y', 'N', 'n']
         while answer not in possible_answers:
-            answer = input('Proceed? (Y/N): ')
+            answer = input('Proceed? (Y/N) ')
 
-        if answer == 'y' or answer == 'Y':
+        if answer.upper() == "Y":
 
-            if 'remote' in argv:
-                if len(self.settings["remote"]["hostname"]) == 0:
-                    self.hostname = input('Hostname:')
-                else:
-                    self.hostname = self.settings["remote"]["hostname"]
-
-                if len(self.settings["remote"]["username"]) == 0:
-                    self.username = input('Username:')
-                else:
-                    self.username = self.settings["remote"]["username"]
-
-                self.password = getpass.win_getpass('Password:') if platform == 'win32' else getpass.unix_getpass(
-                    'Password:')
-                self.t_files = sum([len(f) for r, d, f in walk(self.src_dir)])
-                self.make_dest_dir_network()
-                self.backup_network(self.src_dir)
-
-            else:
+            if self.clean:
+                if "delete" not in self.config.keys():
+                    raise SystemExit("Invalid delete config")
+                elif "files" not in self.config["delete"].keys() and "folders" not in self.config["delete"].keys():
+                    raise SystemExit("Invalid delete config")
+                elif len(self.config["delete"]["files"]) == 0 and len(self.config["delete"]["folders"]) == 0:
+                    raise SystemExit("Invalid delete config")
+                self.clean_files(self.src_dir)
+            elif self.remote:
+                self.files_total = self.count_files(self.src_dir)
                 self.make_dest_dir()
-                self.t_files = sum([len(f) for r, d, f in walk(self.src_dir)])
-                self.backup(self.src_dir)
-                self.rm_old(self.dest_dir)
+                self.connect()
+            else:
+                self.files_total = self.count_files(self.src_dir)
+                self.make_dest_dir()
+                self.backup_files(self.src_dir)
+                answer = ""
+                while answer not in possible_answers:
+                    answer = input("\nDo you want to clean dest dir? (Y/N) ")
+                if answer.upper() == "Y":
+                    self.rm_old(self.dest_dir)
+                else:
+                    raise SystemExit("Bye!")
         else:
             raise SystemExit('Bye!')
 
     def rm_old(self, path):
         for f in listdir(path):
-            s = join(path, f)
-
-            if platform == 'win32':
-                r_dir = self.src_dir + s[len(self.dest_dir):]
-            else:
-                r_dir = self.src_dir + s[len(self.src_dir):]
-
-            if isdir(s):
-                if not exists(r_dir):
+            abs_path = join(path, f)
+            src_path = join(self.src_dir, self.get_rel_path_rm(abs_path))
+            if isdir(abs_path):
+                if not exists(src_path):
                     try:
-                        print(r_dir)
-                        rmtree(s)
-                    except WindowsError as e:
-                        print("Error deleting: %s" % r_dir)
-                else:
-                    self.rm_old(s)
-            elif isfile(s):
-                if not exists(r_dir):
-                    print(r_dir)
-                    remove(s)
-
-    def backup(self, path):
-
-        for f in listdir(path):
-
-            s = join(path, f)
-            d = self.dest_dir + s[self.get_padding(s):]
-            r_dir = d[len(self.dest_dir) - len(d):]
-
-            if isdir(s) and not self.ignore(f, s):
-
-                if not exists(self.dest_dir + r_dir):
-                    mkdir(self.dest_dir + r_dir)
-                self.backup(s)
-
-            elif isfile(s) and not self.ignore(f, s):
-
-                self.c_files += 1
-                self.progress(self.c_files, self.t_files)
-
-                if not exists(d):
-                    try:
-                        copy2(s, d)
+                        print(src_path)
+                        rmtree(abs_path)
                     except OSError:
-                        SystemExit(f'Error copying {d}')
+                        print("Error deleting: %s" % src_path)
                 else:
-                    if not cmp(s, d):
-                        if getmtime(s) > getmtime(d):
-                            try:
-                                remove(d)
-                                copy2(s, d)
-                            except OSError:
-                                raise SystemExit(f'Error replacing {d}')
-            elif isfile(s) and self.ignore(f, s):
-                self.c_files += 1
-            else:
-                self.c_files += sum([len(f) for r, d, f in walk(s)])
+                    self.rm_old(abs_path)
+            elif isfile(abs_path):
+                if not exists(src_path):
+                    print(src_path)
+                    remove(abs_path)
 
-    def backup_network(self, path):
+    def backup_files(self, path):
+        for f in listdir(path):
+            abs_path = join(path, f)
+            dest_path = self.dest_dir + self.get_rel_path(abs_path)
+
+            if isdir(abs_path) and not self.to_ignore(abs_path):
+                if not exists(dest_path):
+                    makedirs(dest_path)
+
+                self.backup_files(abs_path)
+
+            elif isfile(abs_path) and not self.to_ignore(abs_path):
+                if not exists(dest_path):
+                    try:
+                        copy2(abs_path, dest_path)
+                    except OSError:
+                        raise SystemExit(f'Error copying {dest_path}')
+                else:
+                    if not cmp(abs_path, dest_path):
+                        if getmtime(abs_path) > getmtime(dest_path):
+                            try:
+                                copy2(abs_path, dest_path)
+                            except OSError:
+                                raise SystemExit(f'Error replacing {dest_path}')
+                self.files_count += 1
+            self.progress(self.files_count, self.files_total)
+
+    def clean_files(self, path):
+        for f in listdir(path):
+            abs_path = join(path, f)
+            if isdir(abs_path):
+                if self.to_remove(abs_path):
+                    try:
+                        rmtree(abs_path)
+                        print(abs_path)
+                    except PermissionError:
+                        print("Error accessing: " + abs_path)
+
+                else:
+                    self.clean_files(abs_path)
+            elif isfile(abs_path):
+                if self.to_remove(abs_path):
+                    try:
+                        remove(abs_path)
+                        print(abs_path)
+                    except PermissionError:
+                        print("Error accessing: " + abs_path)
+
+    def connect(self):
         opts = CnOpts()
         opts.hostkeys = None
-        with sftp.Connection(self.hostname, username=self.username, password=self.password, cnopts=opts) as conn:
-            with conn.cd(self.dest_dir):
-                for f in listdir(path):
-                    s = join(path, f)
-                    d = self.dest_dir + s[self.get_padding(s):]
-                    if self.settings["remote"]["platform"] == "linux":
-                        d.replace("\\", "/")
-                    r_dir = d[len(self.dest_dir) - len(d):]
-                    if self.settings["remote"]["platform"] == "linux":
-                        r_dir.replace("\\", "/")
-                    if isdir(s) and not self.ignore(f, s):
-                        if f == '.git':
-                            self.c_files += sum([len(f) for r, d, f in walk(s)])
-                            try:
-                                out = check_output(['git', '-C', s, 'remote', '-v']).decode()
-                                git = re.findall('https://.*github.com/[a-zA-Z0-9]+/[a-zA-Z0-9-_]+', out)[0]
-                            except IndexError:
-                                raise SystemExit(f'Bad index {s}')
-                            try:
-                                gitp = s[:-4] + 'gitp'
-                                scr = open(gitp, 'w')
-                                scr.write(f'git init && git remote add origin && git pull {git}')
-                                scr.close()
-                                conn.put(gitp, remotepath=self.dest_dir + r_dir[:-4] + '/gitp')
-                            except OSError:
-                                raise SystemExit('Cannot write git command file')
-                        else:
-                            folder = self.dest_dir + r_dir
-                            if not conn.exists(folder.replace("\\", "/")):
-                                conn.mkdir(folder)
-                            self.backup_network(s)
+        try:
+            conn = sftp.Connection(self.hostname, username=self.username, password=self.password, cnopts=opts)
+        except ConnectionError:
+            raise SystemExit("Connection error")
+        self.backup_files_network(self.src_dir, conn)
 
-                    elif isfile(s) and not self.ignore(f, s):
+    def backup_files_network(self, path, conn):
+        for f in listdir(path):
+            abs_path = join(path, f)
+            relative_path = self.get_rel_path(abs_path)
+            dest_path = self.dest_dir + relative_path
 
-                        self.c_files += 1
-                        self.progress(self.c_files, self.t_files)
-                        conn.put(s, remotepath=self.dest_dir + r_dir, preserve_mtime=True)
+            if isdir(abs_path) and not self.to_ignore(abs_path):
+                if f == '.git':
+                    try:
+                        out = check_output(['git', '-C', abs_path, 'remote', '-v']).decode()
+                        git = re.findall('https://.*github.com/[a-zA-Z0-9-]+/[a-zA-Z0-9-_]+', out)[0]
+                    except IndexError:
+                        raise SystemExit(f'Bad git remote {abs_path}')
+                    try:
+                        gitp = abs_path[:-4] + 'gitp'
+                        gitp_file = open(gitp, 'w')
+                        gitp_file.write(
+                            f'git init && git remote add origin {git}'
+                            f' && git fetch origin master && git reset --hard origin/master && git pull origin master')
+                        gitp_file.close()
+                        gitp_path = dest_path[:-4] + 'gitp'
+                        chmod(gitp, 775)
+                        conn.put(gitp, remotepath=gitp_path)
+                        remove(gitp)
+                    except OSError:
+                        raise SystemExit('Cannot write git command file')
+                    self.files_count += self.count_files(abs_path)
+                else:
+                    if not conn.exists(dest_path):
+                        conn.makedirs(dest_path)
+                    self.backup_files_network(abs_path, conn)
 
-                    elif isfile(s) and self.ignore(f, s):
-                        self.c_files += 1
-                    else:
-                        self.c_files += sum([len(f) for r, d, f in walk(s)])
+            elif isfile(abs_path) and not self.to_ignore(abs_path):
 
-    def parse_path(self, path):
-        if path == 'external':
-            return self.settings[platform][path]
-        elif path == 'dropbox':
-            return self.settings[platform][path]
-        elif path == 'code':
-            return self.settings[platform][path]
-        elif path == 'remote':
-            return self.settings["remote"]["dest"]
-        elif path.startswith('./'):
-            return join(getcwd(), path[2:])
-        elif path.startswith('.'):
-            return getcwd()
+                self.files_count += 1
+                conn.put(abs_path, remotepath=dest_path, preserve_mtime=True)
+            self.progress(self.files_count, self.files_total)
 
-    def ignore(self, name, path):
-        folders = self.settings["ignore_folders"]
-        files = self.settings["ignore_files"]
+    def to_ignore(self, path):
         if isdir(path):
-            if name in folders:
+            try:
+                folders = self.config["ignore"]["folders"].split(", ")
+            except Exception as e:
+                print(e)
+                folders = []
+            if basename(path) in folders:
                 return True
-        elif isfile(path) and argv[2] != 'pi' and argv[1] != 'pi':
-            if name in files:
+        elif isfile(path):
+            try:
+                files = self.config["ignore"]["files"].split(", ")
+            except Exception as e:
+                print(e)
+                files = []
+            if basename(path) in files:
                 return True
-
         return False
 
-    def progress(self, count, total):
+    def to_remove(self, path):
+        base = basename(path)
+        if isdir(path):
+            if base in self.config["delete"]["folders"].split(", "):
+                return True
+        elif isfile(base):
+            if base in self.config["delete"]["files"].split(", "):
+                return True
+        return False
+
+    def get_rel_path(self, path):
+        base = basename(self.src_dir)
+        return path[path.index(base) + len(base):]
+
+    def get_rel_path_rm(self, path):
+        return path[path.index(basename(self.dest_dir)) + len(basename(self.dest_dir)) + 1:]
+
+    def make_dest_dir(self):
+        if self.remote:
+            with sftp.Connection(self.hostname, username=self.username, password=self.password) as conn:
+                if not conn.exists(self.dest_dir):
+                    conn.makedirs(self.dest_dir)
+        else:
+            if not exists(self.dest_dir):
+                try:
+                    makedirs(self.dest_dir)
+                except OSError:
+                    raise SystemExit('Invalid dest directory')
+
+    @staticmethod
+    def format_path(path):
+        if path.startswith("./"):
+            return path[2:]
+        elif path == ".":
+            return ""
+        else:
+            return path
+
+    @staticmethod
+    def count_files(path):
+        return sum([len(f) for _, _, f in walk(path)])
+
+    @staticmethod
+    def progress(count, total):
         bar_len = 50
         filled_len = int(round(bar_len * count / float(total)))
-        status = total - count
+        status = f"{count}/{total}"
         percents = round(100.0 * count / float(total), 2)
         bar = '#' * filled_len + '.' * (bar_len - filled_len)
         stdout.write('[%s] %.2f%s Files: %s \r' % (bar, percents, '%', status))
         stdout.flush()
-
-    def get_padding(self, path):
-        return len(self.src_dir) - len(path)
-
-    def make_dest_dir_network(self):
-        with sftp.Connection(self.hostname, username=self.username, password=self.password) as conn:
-            if not conn.exists(self.dest_dir):
-                conn.makedirs(self.dest_dir)
-
-    def make_dest_dir(self):
-        if not exists(self.src_dir):
-            raise SystemExit('Invalid src directory')
-
-        if not exists(self.dest_dir):
-            try:
-                mkpath(self.dest_dir)
-            except OSError:
-                raise SystemExit('Invalid dest directory')
 
 
 @atexit.register
@@ -250,4 +356,7 @@ def clear():
 
 
 if __name__ == '__main__':
-    backup = Backup()
+    try:
+        Backup()
+    except KeyboardInterrupt:
+        print("\nBye")
