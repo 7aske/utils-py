@@ -1,5 +1,5 @@
 from os import listdir, getcwd
-from os.path import isdir, join, exists
+from os.path import isdir, join, exists, isabs
 from subprocess import Popen, PIPE
 import configparser
 from pathlib import Path
@@ -27,8 +27,14 @@ class Status:
             raise SystemExit("Invalid config file")
 
         if len(argv) == 2:
-            self.src = join(self.src, argv[1])
-
+            path = argv[1]
+            if isabs(path):
+                self.src = path
+            elif path in listdir(self.src):
+                self.src = join(self.src, argv[1])
+            else:
+                self.src = join(getcwd(), path)
+        print("Path: " + self.src)
         self.check(self.src)
 
     def check(self, path):
