@@ -172,7 +172,7 @@ class Backup:
             if isdir(abs_path):
                 if not exists(src_path):
                     try:
-                        print(src_path)
+                        print(abs_path)
                         rmtree(abs_path)
                     except OSError:
                         print("Error deleting: %s" % src_path)
@@ -180,7 +180,7 @@ class Backup:
                     self.rm_old(abs_path)
             elif isfile(abs_path):
                 if not exists(src_path):
-                    print(src_path)
+                    print(abs_path)
                     remove(abs_path)
 
     def backup_files(self, path):
