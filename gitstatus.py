@@ -1,28 +1,33 @@
-from json import load
-from sys import platform, argv
 from os import listdir, getcwd
-from os.path import isdir, join, dirname
+from os.path import isdir, join, exists
 from subprocess import Popen, PIPE
+import configparser
+from pathlib import Path
+from sys import argv
 
 
 class Status:
     repo_list = []
     proc_list = []
-    setings = {}
+    config = configparser.ConfigParser()
+    config_path = join(getcwd(), "gitstatus.ini")
+    config_path_home = join(str(Path.home()), "gitstatus.ini")
     counter = 0
     countern = 0
     src = ""
 
     def __init__(self):
-
-        with open(join(dirname(__file__), "settings.json")) as f:
-            self.settings = load(f)
-        if len(argv) == 3:
-            self.src = join(self.settings[platform]["code"], argv[1], argv[2])
-        elif len(argv) == 2:
-            self.src = join(self.settings[platform]["code"], argv[1])
+        if exists(self.config_path):
+            self.config.read(self.config_path)
+            self.src = self.config["path"]["src"]
+        elif exists(self.config_path_home):
+            self.config.read(self.config_path_home)
+            self.src = self.config["path"]["src"]
         else:
-            self.src = self.settings[platform]["code"]
+            raise SystemExit("Invalid config file")
+
+        if len(argv) == 2:
+            self.src = join(self.src, argv[1])
 
         self.check(self.src)
 
@@ -30,7 +35,7 @@ class Status:
 
         for rf in listdir(path):
             rf_abs = join(path, rf)
-            if isdir(rf_abs) and not self.ignore(rf,rf_abs):
+            if isdir(rf_abs) and not self.ignore(rf, rf_abs):
                 if rf == ".git":
                     self.git_status(path)
                 elif ".git" in listdir(rf_abs):
@@ -63,34 +68,25 @@ class Status:
             self.countern += 1
         return text
 
-    def check_errors(self, s):
+    @staticmethod
+    def check_errors(s):
         errors = ["Changes to be committed", "Changes not staged for commit", "Untracked files"]
         for error in errors:
             if error in s:
                 return True
         return False
 
-    def ignore(self,name, path):
+    @staticmethod
+    def ignore(name, path):
         ignore_folders = ["_test", "_others"]
         if isdir(path):
             if name in ignore_folders:
                 return True
         return False
 
-    def parse_path(self, path):
-        if path == 'external':
-            return self.settings[platform][path]
-        elif path == 'dropbox':
-            return self.settings[platform][path]
-        elif path == 'code':
-            return self.settings[platform][path]
-        elif path == 'remote':
-            return self.settings["remote"]["dest"]
-        elif path.startswith('./'):
-            return join(getcwd(), path[2:])
-        elif path.startswith('.'):
-            return getcwd()
-
 
 if __name__ == "__main__":
-    Status()
+    try:
+        Status()
+    except KeyboardInterrupt:
+        raise SystemExit("\nBye")
