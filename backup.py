@@ -215,21 +215,23 @@ class Backup:
             abs_path = join(path, f)
             if isdir(abs_path):
                 if self.to_remove(abs_path):
-                    try:
-                        rmtree(abs_path)
-                        print(abs_path)
-                    except PermissionError:
-                        print("Error accessing: " + abs_path)
+                    if input("Delete " + abs_path + "? (Y/N) ").upper() == "Y":
+                        try:
+                            rmtree(abs_path)
+                            print("Deleted " + abs_path)
+                        except PermissionError:
+                            print("Error accessing: " + abs_path)
 
                 else:
                     self.clean_files(abs_path)
             elif isfile(abs_path):
                 if self.to_remove(abs_path):
-                    try:
-                        remove(abs_path)
-                        print(abs_path)
-                    except PermissionError:
-                        print("Error accessing: " + abs_path)
+                    if input("Delete " + abs_path + "? (Y/N) ").upper() == "Y":
+                        try:
+                            remove(abs_path)
+                            print("Deleted " + abs_path)
+                        except PermissionError:
+                            print("Error accessing: " + abs_path)
 
     def connect(self):
         opts = CnOpts()
