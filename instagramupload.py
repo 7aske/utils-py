@@ -13,6 +13,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+
 class Stack:
     def __init__(self):
         self.items = []
@@ -155,7 +156,14 @@ class Main:
                             date = dt.strptime(content, self.__dt_format)
                     if dt.now() >= date:
                         self.update_tags()
-                        self.upload_photo()
+                        try:
+                            self.upload_photo()
+                        except WrongPassword as e:
+                            print(e)
+                            raise SystemExit()
+                        except ServerError as e:
+                            print(e)
+                            raise SystemExit()
                         s = self.get_timeout()
                         n = dt.now() + timedelta(seconds=s)
                         print("Next upload - %s" % n.strftime(self.__dt_format))
@@ -163,12 +171,8 @@ class Main:
                             nextupload.write(n.strftime(self.__dt_format))
                             nextupload.close()
                         if self.__mail:
-                            try:
-                                self.send_email(n.strftime(self.__dt_format))
-                                print("Mail sent")
-                            except Exception as e:
-                                print("Mail not sent")
-                                pass
+                            self.send_email(n.strftime(self.__dt_format))
+                            print("Mail sent")
                         sleep(s)
                     else:
                         newdate = date - dt.now()
@@ -215,18 +219,21 @@ class Main:
             with client(self.__username, self.__password) as cli:
                 print(photo)
                 cli.upload(photo, caption)
-                remove(photo)
         except IOError as e:
             if "The password you entered is incorrect." in str(e):
                 self.__config["credentials"]["password"] = ""
                 with open(self.__config_path, "w") as configfile:
                     self.__config.write(configfile)
                     configfile.close()
-                raise SystemExit("Password The password you entered is incorrect. Please try again.")
-            self.__photos.push(photo)
-            print("Retrying photo upload in 60 seconds.")
-            sleep(60)
-            self.upload_photo()
+                raise WrongPassword("Password The password you entered is incorrect. Please try again.")
+            else:
+                self.__photos.push(photo)
+                print("Retrying photo upload in 60 seconds.")
+                sleep(60)
+                self.upload_photo()
+        except Exception as e:
+            raise ServerError(e)
+        remove(photo)
 
     def get_timeout(self):
         offset = choice([-1, 1]) * randrange(int(self._timeout / 20), int(self._timeout / 10) + 1)
@@ -254,7 +261,9 @@ class Main:
           </body>
         </html>
         """.format(account=self.__username, nextupload=nextupload, remaining=len(self.__photos))
-        text = ("Subject: Instagram Upload\n\nNew photo uploaded on account %s.\n\nNext scheduled for: %s.\nRemaining photos: %d." % (self.__username, nextupload, len(self.__photos)))
+        text = (
+                "Subject: Instagram Upload\n\nNew photo uploaded on account %s.\n\nNext scheduled for: %s.\nRemaining photos: %d." % (
+            self.__username, nextupload, len(self.__photos)))
         part1 = MIMEText(text, 'plain')
         part2 = MIMEText(html, 'html')
         msg.attach(part1)
@@ -298,6 +307,20 @@ class Main:
             return out < 0.2
         finally:
             img.close()
+
+
+class WrongPassword(Exception):
+
+    def __init__(self, *args: object) -> None:
+        super().__init__(*args)
+        print("Wrong password")
+
+
+class ServerError(Exception):
+
+    def __init__(self, *args: object) -> None:
+        super().__init__(*args)
+        print("Server Error")
 
 
 if __name__ == '__main__':
