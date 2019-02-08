@@ -4,3 +4,6 @@ git
 .vscode
 venv
 *.ini
+photos
+test
+*.jpg
