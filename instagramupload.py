@@ -227,13 +227,14 @@ class Main:
                     configfile.close()
                 raise WrongPassword("Password The password you entered is incorrect. Please try again.")
             else:
+                raise ServerError(e)
                 self.__photos.push(photo)
                 print("Retrying photo upload in 60 seconds.")
                 sleep(60)
                 self.upload_photo()
         except Exception as e:
             raise ServerError(e)
-        remove(photo)
+        # remove(photo)
 
     def get_timeout(self):
         offset = choice([-1, 1]) * randrange(int(self._timeout / 20), int(self._timeout / 10) + 1)
