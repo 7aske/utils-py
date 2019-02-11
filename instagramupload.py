@@ -16,8 +16,6 @@ from pathlib import Path
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-stdout = open("out", "a+")
-
 
 class Stack:
     def __init__(self):
