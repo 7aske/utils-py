@@ -1,10 +1,7 @@
-import atexit
-from os import listdir, getcwd, remove, rename
+from os import listdir, getcwd, rename
 from os.path import join, splitext, exists, isabs
 from PIL import Image
 from sys import argv
-import sys
-from instapy_cli import client
 from time import sleep
 from random import randrange, choice
 import getpass
@@ -15,6 +12,7 @@ import smtplib
 from pathlib import Path
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import instapy_cli
 
 
 class Stack:
@@ -237,7 +235,7 @@ class Main:
         if self.is_bnw(photo):
             caption += "\n\n" + self.bnw_caption
         try:
-            with client(self.username, self.password) as cli:
+            with instapy_cli.client(self.username, self.password) as cli:
                 self.logger.log(photo)
                 cli.upload(photo, caption)
             rename(photo, photo + ".UPLOADED")
@@ -330,17 +328,16 @@ class Main:
 
 
 class WrongPassword(Exception):
-
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
-        self.logger.log("Wrong password")
+        print("Wrong password")
 
 
 class ServerError(Exception):
 
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
-        self.logger.log("Server Error")
+        print("Server Error")
 
 
 if __name__ == '__main__':
