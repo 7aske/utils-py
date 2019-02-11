@@ -35,125 +35,125 @@ class Stack:
 
 
 class Main:
-    __username = ""
-    __password = ""
-    __watch = False
-    __bedtime = False
-    __photos = Stack()
-    __photos_dir = ""
-    __config = configparser.ConfigParser()
-    __config_path = join(getcwd(), "instagramupload.ini")
-    __next_upload = join(getcwd(), "nextupload")
-    _bnw_caption = "#blackandwhitephotography #blackandwhite #streetphotography_bw #bw #bnw #bnwmood #bnw_captures #bnwphotography #bnw_mood #bnw_captures #bnwphotography"
-    _regular_caption = "#vscofilm #vscodaily #vscocam #vsco #vscogood #vscoph #vsco_rs #vscogrid #vscomasters #vscobalkan #photography #fuji #explore #street #streetphotography #urban #urbanexploring #people #photojournalism"
-    _timeout = 43200
-    __dt_format = "%Y/%d/%m %H:%M:%S"
-    __mail = False
-    __mail_username = ""
-    __mail_password = ""
-    __mail_to = ""
+    username = ""
+    password = ""
+    watch = False
+    bedtime = False
+    photos = Stack()
+    photos_dir = ""
+    config = configparser.ConfigParser()
+    config_path = join(getcwd(), "instagramupload.ini")
+    next_upload = join(getcwd(), "nextupload")
+    bnw_caption = "#blackandwhitephotography #blackandwhite #streetphotography_bw #bw #bnw #bnwmood #bnw_captures #bnwphotography #bnw_mood #bnw_captures #bnwphotography"
+    regular_caption = "#vscofilm #vscodaily #vscocam #vsco #vscogood #vscoph #vsco_rs #vscogrid #vscomasters #vscobalkan #photography #fuji #explore #street #streetphotography #urban #urbanexploring #people #photojournalism"
+    timeout = 43200
+    dt_format = "%Y/%d/%m %H:%M:%S"
+    mail = False
+    mail_username = ""
+    mail_password = ""
+    mail_to = ""
 
     def __init__(self):
 
         if "--watch" in argv:
-            self.__watch = True
+            self.watch = True
             print("Starting in watch mode.")
             argv.remove("--watch")
         if "--bedtime" in argv:
             print("Starting in no bedtime mode.")
-            self.__watch = True
+            self.watch = True
             argv.remove("--bedtime")
 
         possible_answers = ["Y", "N"]
         answer = ""
-        if exists(self.__config_path):
-            self.__config.read(self.__config_path)
-            if "credentials" not in self.__config:
+        if exists(self.config_path):
+            self.config.read(self.config_path)
+            if "credentials" not in self.config:
                 raise SystemExit("Bad config file.")
             else:
-                if "username" not in self.__config["credentials"] or "password" not in self.__config["credentials"]:
+                if "username" not in self.config["credentials"] or "password" not in self.config["credentials"]:
                     raise SystemExit("Bad config file.")
 
-            self.__config.read(self.__config_path)
-            self.__username = self.__config["credentials"]["username"]
-            self.__password = self.__config["credentials"]["password"]
-            print("Account: %s" % self.__username)
-            if self.__username == "":
+            self.config.read(self.config_path)
+            self.username = self.config["credentials"]["username"]
+            self.password = self.config["credentials"]["password"]
+            print("Account: %s" % self.username)
+            if self.username == "":
                 raise SystemExit("Invalid instagramupload.ini username.")
-            if self.__password == "":
-                self.__password = getpass.unix_getpass("Password: ")
+            if self.password == "":
+                self.password = getpass.unix_getpass("Password: ")
 
-            print("Password: %s" % "".join(["*" for _ in self.__password]))
+            print("Password: %s" % "".join(["*" for _ in self.password]))
 
         else:
-            self.__username = input("Username: ")
-            self.__password = getpass.unix_getpass("Password: ")
-            self.__config["credentials"] = {
-                "username": self.__username,
-                "password": self.__password
+            self.username = input("Username: ")
+            self.password = getpass.unix_getpass("Password: ")
+            self.config["credentials"] = {
+                "username": self.username,
+                "password": self.password
             }
-            with open(self.__config_path, "w") as configfile:
-                self.__config.write(configfile)
+            with open(self.config_path, "w") as configfile:
+                self.config.write(configfile)
                 configfile.close()
         try:
             if "-f" in argv:
                 path = argv[argv.index("-f") + 1]
-                self.__photos_dir = path if isabs(path) else join(getcwd(), path)
-            elif "folder" in self.__config["config"]:
-                path = self.__config["config"]["folder"]
-                self.__photos_dir = path if isabs(path) else join(getcwd(), path)
+                self.photos_dir = path if isabs(path) else join(getcwd(), path)
+            elif "folder" in self.config["config"]:
+                path = self.config["config"]["folder"]
+                self.photos_dir = path if isabs(path) else join(getcwd(), path)
             else:
-                self.__photos_dir = getcwd()
+                self.photos_dir = getcwd()
             if "-t" in argv:
                 try:
-                    self._timeout = int(argv[argv.index("-t") + 1])
+                    self.timeout = int(argv[argv.index("-t") + 1])
                 except ValueError:
-                    self._timeout = 43200
-            elif "timeout" in self.__config["config"]:
-                self._timeout = int(self.__config["config"]["timeout"])
+                    self.timeout = 43200
+            elif "timeout" in self.config["config"]:
+                self.timeout = int(self.config["config"]["timeout"])
             else:
-                self._timeout = 43200
+                self.timeout = 43200
 
-            self.__config["config"] = {
-                "timeout": self._timeout,
-                "folder": self.__photos_dir
+            self.config["config"] = {
+                "timeout": self.timeout,
+                "folder": self.photos_dir
             }
 
         except Exception:
             raise SystemExit("Usage: -f <folder> -t <timeout> [--watch] [--bedtime]")
-        if not exists(self.__photos_dir):
-            raise SystemExit("Photos directory doesn't exist.\n%s" % self.__photos_dir)
-        with open(self.__config_path, "w") as configfile:
-            self.__config.write(configfile)
+        if not exists(self.photos_dir):
+            raise SystemExit("Photos directory doesn't exist.\n%s" % self.photos_dir)
+        with open(self.config_path, "w") as configfile:
+            self.config.write(configfile)
             configfile.close()
 
-        self.__mail = self.validate_mail_config()
-        print(self.__mail)
-        if self.__mail:
-            self.__mail_username = self.__config["mailer"]["username"]
-            self.__mail_password = self.__config["mailer"]["password"]
-            self.__mail_to = self.__config["mailer"]["to"]
+        self.mail = self.validate_mail_config()
+        print(self.mail)
+        if self.mail:
+            self.mail_username = self.config["mailer"]["username"]
+            self.mail_password = self.config["mailer"]["password"]
+            self.mail_to = self.config["mailer"]["to"]
 
         while answer.upper() not in possible_answers:
-            print("Start uploading from: '%s'" % self.__photos_dir, end="")
-            print(" with timeout of '%d'" % self._timeout)
+            print("Start uploading from: '%s'" % self.photos_dir, end="")
+            print(" with timeout of '%d'" % self.timeout)
             answer = input("Are you sure? (Y/N) ")
         if answer.upper() == "Y":
             self.update_photos()
             while True:
-                print("Photos - %d" % len(self.__photos))
-                if len(self.__photos) == 0:
+                print("Photos - %d" % len(self.photos))
+                if len(self.photos) == 0:
                     self.update_photos()
-                    s = min(3600, self._timeout)
+                    s = min(3600, self.timeout)
                     n = dt.now() + timedelta(seconds=s)
-                    print("Next refresh - %s" % n.strftime(self.__dt_format))
+                    print("Next refresh - %s" % n.strftime(self.dt_format))
                     sleep(s)
                 else:
                     date = dt.now()
-                    if exists(self.__next_upload):
-                        with open(self.__next_upload, "r") as nextupload:
+                    if exists(self.next_upload):
+                        with open(self.next_upload, "r") as nextupload:
                             content = nextupload.read()
-                            date = dt.strptime(content, self.__dt_format)
+                            date = dt.strptime(content, self.dt_format)
                     if dt.now() >= date:
                         self.update_tags()
                         try:
@@ -166,12 +166,12 @@ class Main:
                             raise SystemExit()
                         s = self.get_timeout()
                         n = dt.now() + timedelta(seconds=s)
-                        print("Next upload - %s" % n.strftime(self.__dt_format))
-                        with open(self.__next_upload, "w") as nextupload:
-                            nextupload.write(n.strftime(self.__dt_format))
+                        print("Next upload - %s" % n.strftime(self.dt_format))
+                        with open(self.next_upload, "w") as nextupload:
+                            nextupload.write(n.strftime(self.dt_format))
                             nextupload.close()
-                        if self.__mail:
-                            self.send_email(n.strftime(self.__dt_format))
+                        if self.mail:
+                            self.send_email(n.strftime(self.dt_format))
                             print("Mail sent")
                         sleep(s)
                     else:
@@ -182,13 +182,13 @@ class Main:
             raise SystemExit("Bye")
 
     def update_photos(self):
-        for photo in listdir(self.__photos_dir):
+        for photo in listdir(self.photos_dir):
             _, ext = splitext(photo)
             if ext.upper() == ".JPG":
-                self.__photos.push(join(self.__photos_dir, photo))
+                self.photos.push(join(self.photos_dir, photo))
 
-        if len(self.__photos) == 0:
-            if not self.__watch:
+        if len(self.photos) == 0:
+            if not self.watch:
                 raise SystemExit("Folder Empty")
 
     def update_tags(self):
@@ -196,39 +196,39 @@ class Main:
         regular_path = join(getcwd(), "regular_tags.txt")
         if exists(bnw_path):
             with open(bnw_path, "r") as bnw:
-                self._bnw_caption = ""
+                self.bnw_caption = ""
                 for line in bnw.readlines():
-                    self._bnw_caption += line
+                    self.bnw_caption += line
                 bnw.close()
         if exists(regular_path):
             with open(regular_path, "r") as regular:
-                self._regular_caption = ""
+                self.regular_caption = ""
                 for line in regular.readlines():
-                    self._regular_caption += line
+                    self.regular_caption += line
                 regular.close()
 
     def upload_photo(self):
-        if 1 < dt.now().hour < 9 and self.__bedtime:
+        if 1 < dt.now().hour < 9 and self.bedtime:
             print("Bed time, skipping upload")
             pass
-        photo = self.__photos.pop()
-        caption = self._regular_caption
+        photo = self.photos.pop()
+        caption = self.regular_caption
         if self.is_bnw(photo):
-            caption += "\n\n" + self._bnw_caption
+            caption += "\n\n" + self.bnw_caption
         try:
-            with client(self.__username, self.__password) as cli:
+            with client(self.username, self.password) as cli:
                 print(photo)
                 cli.upload(photo, caption)
             remove(photo)
         except IOError as e:
             if "The password you entered is incorrect." in str(e):
-                self.__config["credentials"]["password"] = ""
-                with open(self.__config_path, "w") as configfile:
-                    self.__config.write(configfile)
+                self.config["credentials"]["password"] = ""
+                with open(self.config_path, "w") as configfile:
+                    self.config.write(configfile)
                     configfile.close()
                 raise WrongPassword("Password The password you entered is incorrect. Please try again.")
             else:
-                self.__photos.push(photo)
+                self.photos.push(photo)
                 print("Retrying photo upload in 60 seconds.")
                 sleep(60)
                 self.upload_photo()
@@ -236,21 +236,21 @@ class Main:
             raise ServerError(e)
 
     def get_timeout(self):
-        offset = choice([-1, 1]) * randrange(int(self._timeout / 20), int(self._timeout / 10) + 1)
-        return self._timeout + offset
+        offset = choice([-1, 1]) * randrange(int(self.timeout / 20), int(self.timeout / 10) + 1)
+        return self.timeout + offset
 
     def validate_mail_config(self):
-        if "mailer" in self.__config:
-            if "to" in self.__config["mailer"] and "username" in self.__config["mailer"] and "password" in \
-                    self.__config["mailer"]:
+        if "mailer" in self.config:
+            if "to" in self.config["mailer"] and "username" in self.config["mailer"] and "password" in \
+                    self.config["mailer"]:
                 return True
         return False
 
     def send_email(self, nextupload):
         msg = MIMEMultipart('alternative')
         msg['Subject'] = "Instagram Upload"
-        msg['From'] = self.__mail_username
-        msg['To'] = self.__mail_to
+        msg['From'] = self.mail_username
+        msg['To'] = self.mail_to
         html = """\
         <html>
           <head></head>
@@ -260,18 +260,18 @@ class Main:
             Remaining photos: <b>{remaining}</b>.
           </body>
         </html>
-        """.format(account=self.__username, nextupload=nextupload, remaining=len(self.__photos))
+        """.format(account=self.username, nextupload=nextupload, remaining=len(self.photos))
         text = (
                 "Subject: Instagram Upload\n\nNew photo uploaded on account %s.\n\nNext scheduled for: %s.\nRemaining photos: %d." % (
-            self.__username, nextupload, len(self.__photos)))
+            self.username, nextupload, len(self.photos)))
         part1 = MIMEText(text, 'plain')
         part2 = MIMEText(html, 'html')
         msg.attach(part1)
         msg.attach(part2)
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
-        server.login(self.__mail_username, self.__mail_password)
-        server.sendmail(self.__mail_username, self.__mail_to, msg.as_string())
+        server.login(self.mail_username, self.mail_password)
+        server.sendmail(self.mail_username, self.mail_to, msg.as_string())
         server.quit()
 
     @staticmethod
