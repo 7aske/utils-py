@@ -44,14 +44,17 @@ class Mailer:
     logger = None
 
     def __init__(self):
+        self.logger = Logger()
         if "-t" in argv:
             try:
                 self.delay = int(argv[argv.index("-t") + 1])
+                self.logger.log("Delay set to " + str(self.delay))
             except ValueError:
                 self.delay = 60
-                print("Invalid timer value, defaulting to 60s")
-        if "--log" in argv:
-            self.logger = Logger()
+                self.logger.log("Invalid timer value, defaulting to 60s")
+
+        if "--log" not in argv:
+            self.logger.setout(False)
 
         if exists(self.config_path):
             self.config.read(self.config_path)
