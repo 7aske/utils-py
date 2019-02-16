@@ -1,39 +1,62 @@
 import smtplib
+from pathlib import Path
 from requests import get
 from requests.exceptions import ConnectionError
 from sys import argv, platform
 from time import strftime, gmtime, sleep
 import configparser
 import getpass
-from os import system, getcwd
+from os import system, getcwd, path
 from os.path import join, exists
 
 
+class Logger:
+    filename = ""
+    out = True
+
+    def __init__(self, filename="ipmailer.log"):
+        self.filename = path.join(str(Path.home()), filename)
+
+    def log(self, data):
+        if self.out:
+            with open(self.filename, "a+") as f:
+                f.write(data.replace("\n", " ") + "\n")
+        print(data)
+
+    def setout(self, out):
+        self.out = out
+
+    def getout(self):
+        return self.out
+
+
 class Mailer:
-    username = ''
-    password = ''
-    send_to = ''
-    noip_username = ''
-    noip_password = ''
-    noip_hostname = ''
-    ip = ''
+    username = ""
+    password = ""
+    send_to = ""
+    noip_username = ""
+    noip_password = ""
+    noip_hostname = ""
+    ip = ""
     delay = 60
     config = configparser.ConfigParser()
     config_path = join(getcwd(), "ipmailer.ini")
+    logger = None
 
     def __init__(self):
-        if len(argv) == 3 and argv[1] == "-t":
+        if "-t" in argv:
             try:
-                self.delay = int(argv[2])
+                self.delay = int(argv[argv.index("-t") + 1])
             except ValueError:
                 self.delay = 60
                 print("Invalid timer value, defaulting to 60s")
+        if "--log" in argv:
+            self.logger = Logger()
 
         if exists(self.config_path):
             self.config.read(self.config_path)
             if not self.validate_config():
                 raise SystemExit("Bad config")
-
         else:
             self.update_config()
 
@@ -44,15 +67,15 @@ class Mailer:
 
     def get_ip(self):
         try:
-            ip = get('https://api.ipify.org').text
+            ip = get("https://api.ipify.org").text
         except ConnectionError:
             return self.ip
         return ip
 
     def check_ip_change(self):
         new_ip = self.get_ip()
-        time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
-        print("IP:%s\nTime:%s" % (new_ip, time))
+        time = strftime("%m-%d %H:%M:%S", gmtime())
+        self.logger.log("{time} - {ip}".format(time=time, ip=new_ip))
         if new_ip != self.ip:
             self.ip = new_ip
             self.send_email(self.ip, time)
@@ -60,17 +83,18 @@ class Mailer:
 
     def send_email(self, ip, time):
         text = "New IP address is: %s\nTime of change: %s" % (ip, time)
-        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
         server.login(self.username, self.password)
         server.sendmail(self.username, self.send_to, text)
         server.quit()
-        print("Mail sent")
+        self.logger.log("{} - Mail sent".format(time))
 
     def update_dns(self):
-        update_cmd = 'noipy -u ' + self.noip_username + ' -p ' + self.noip_password + ' -n ' + self.noip_hostname + ' --provider noip'
+        time = strftime("%m-%d %H:%M:%S", gmtime())
+        update_cmd = "noipy -u " + self.noip_username + " -p " + self.noip_password + " -n " + self.noip_hostname + " --provider noip"
         out = system(update_cmd)
-        print("DNS Updated")
+        self.logger.log("{} - DNS Updated".format(time))
 
     def validate_config(self):
         if "noip" not in self.config or "nodemailer" not in self.config:
