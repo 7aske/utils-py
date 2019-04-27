@@ -64,8 +64,11 @@ class Status:
         dialog_out += "\nRepositories checked: %d\n" % self.countern
         if self.counter > 0:
             dialog_out += "Not up-to-date: %d\n" % self.counter
-        for x in self.langs:
-            print(x.ljust(12), self.langs[x])
+        # for x in self.langs:
+        #     print(x.ljust(12), self.langs[x])
+        print()
+        for i in sorted(self.langs):
+            print(i.ljust(12), self.langs[i])
         print(dialog_out)
 
     def git_status(self, path):
