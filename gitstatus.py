@@ -9,6 +9,7 @@ from sys import argv
 class Status:
     repo_list = []
     proc_list = []
+    langs = {}
     config = configparser.ConfigParser()
     config_path = join(getcwd(), "gitstatus.ini")
     config_path_home = join(str(Path.home()), "gitstatus.ini")
@@ -40,17 +41,22 @@ class Status:
     def check(self, path):
 
         for rf in listdir(path):
+            if rf.startswith("_"):
+                continue
             rf_abs = join(path, rf)
+            self.langs[rf] = 0;
             if isdir(rf_abs) and not self.ignore(rf, rf_abs):
                 if rf == ".git":
                     self.git_status(path)
                 elif ".git" in listdir(rf_abs):
+                    self.langs[rf] += 1
                     self.git_status(rf_abs)
 
                 for gf in listdir(rf_abs):
                     gf_abs = join(rf_abs, gf)
                     if isdir(gf_abs):
                         if ".git" in listdir(gf_abs):
+                            self.langs[rf] += 1
                             self.git_status(gf_abs)
 
         dialog_out = self.proc_out("\n")
@@ -58,6 +64,8 @@ class Status:
         dialog_out += "\nRepositories checked: %d\n" % self.countern
         if self.counter > 0:
             dialog_out += "Not up-to-date: %d\n" % self.counter
+        for x in self.langs:
+            print(x.ljust(12), self.langs[x])
         print(dialog_out)
 
     def git_status(self, path):
@@ -68,6 +76,8 @@ class Status:
     def proc_out(self, text):
         for i, p in enumerate(self.proc_list):
             out = str(p.stdout.read())
+            if "-l" in argv:
+                print(self.repo_list[i])
             if self.check_errors(out):
                 text += "%s \n" % self.repo_list[i]
                 self.counter += 1
