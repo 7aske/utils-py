@@ -52,8 +52,8 @@ def check(p):
 	else:
 		if flags["list"]:
 			print_nonverbose_structure_list(repo_structure, repo_structure_noncommited)
-			print("{:14}{:14}\n".format(commited, "\033[31m\033[1;6;31m {}\033[00m".format(
-			not_commited) if not_commited > 0 else ""))
+			print("{:>22}{}\n".format(commited, "\033[31m\033[1;6;31m {}\033[00m".format(
+				not_commited) if not_commited > 0 else ""))
 		if not_commited > 0:
 			print_nonverbose_structure(repo_structure_noncommited)
 		else:
@@ -61,16 +61,22 @@ def check(p):
 
 
 def print_nonverbose_structure_list(struct, structnc):
-	print("lang".ljust(12) + "#r" + "#n")
+	print("lang".ljust(20) + "#r" + "#n")
 	print("".join(["-" for _ in range(24)]))
 	for key in sorted(struct.keys()):
-		print("\033[32m{}\033[00m".format(key.ljust(12)), "\033[33m{} \033[1;6;31m{}\033[00m".format(len(struct[key]), get_noncommited_len(structnc, key) if get_noncommited_len(structnc, key) > 0 else ""))
+		nc = get_noncommited_len(structnc, key)
+		if nc > 0:
+			print("\033[31m{:20}\033[00m".format(key + "*") + "\033[33m{:>2} \033[1;6;31m{:1}\033[00m".format(
+				len(struct[key]), nc))
+		else:
+			print("\033[32m{:20}\033[00m".format(key) + "\033[33m{:>2}\033[00m".format(len(struct[key])))
 
 
 def print_nonverbose_structure(struct):
 	for key in sorted(struct):
 		for repo in struct[key]:
-			print("\033[32m{}\033[00m".format(key.ljust(12)), "\033[33m{}\033[00m".format(repo))
+			print("\033[32m{:20}\033[00m".format(key.ljust(12)), "\033[33m{}\033[00m".format(repo))
+	print()
 
 
 def verbose_structure(struct, structnc):
@@ -79,10 +85,11 @@ def verbose_structure(struct, structnc):
 	for n, key in enumerate(struct.keys()):
 
 		last_lang = n == len(struct.keys()) - 1
-		out += "{}──\033[1;32m{}\033[0;34m({}) \033[6;1;31m{}\033[00m\n".format("└" if last_lang else "├", key, len(struct[key]),
-		                                                            get_noncommited_len(structnc,
-		                                                                                key) if get_noncommited_len(
-			                                                            structnc, key) > 0 else "")
+		out += "{}──\033[1;32m{}\033[0;34m({}) \033[6;1;31m{}\033[00m\n".format("└" if last_lang else "├", key,
+		                                                                        len(struct[key]),
+		                                                                        get_noncommited_len(structnc,
+		                                                                                            key) if get_noncommited_len(
+			                                                                        structnc, key) > 0 else "")
 
 		for i, repo in enumerate(struct[key]):
 			last_repo = i == len(struct[key]) - 1
