@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import atexit
 from filecmp import cmp
 import getpass
@@ -117,20 +119,18 @@ class Backup:
         if len(self.dest_dir) == 0:
             raise SystemExit('Invalid destination dir')
 
-        if self.clean:
-            if "delete" not in self.config.keys():
-                raise SystemExit("Invalid delete config")
-            elif "files" not in self.config["delete"].keys() and "folders" not in self.config["delete"].keys():
-                raise SystemExit("Invalid delete config")
-            elif len(self.config["delete"]["files"]) == 0 and len(self.config["delete"]["folders"]) == 0:
-                raise SystemExit("Invalid delete config")
-
         print(f'Source      {self.src_dir}')
         if self.remote:
             print(f'Destination {self.username}@{self.hostname}:{self.dest_dir}')
         elif not self.clean:
             print(f'Destination {self.dest_dir}')
         elif self.clean:
+            if "delete" not in self.config.keys():
+                raise SystemExit("Invalid delete config")
+            elif "files" not in self.config["delete"].keys() and "folders" not in self.config["delete"].keys():
+                raise SystemExit("Invalid delete config")
+            elif len(self.config["delete"]["files"]) == 0 and len(self.config["delete"]["folders"]) == 0:
+                raise SystemExit("Invalid delete config")
             print("Cleaning selected directory")
         answer = ''
         possible_answers = ['Y', 'y', 'N', 'n']
@@ -191,22 +191,30 @@ class Backup:
             if isdir(abs_path) and not self.to_ignore(abs_path):
                 if not exists(dest_path):
                     makedirs(dest_path)
-
-                self.backup_files(abs_path)
+                try:
+                    self.backup_files(abs_path)
+                except PermissionError:
+                    print(f"EPERM: Error copying {abs_path}")
 
             elif isfile(abs_path) and not self.to_ignore(abs_path):
                 if not exists(dest_path):
                     try:
                         copy2(abs_path, dest_path)
+                    except PermissionError:
+                        print(f"EPERM: Error copying {dest_path}")
                     except OSError:
                         raise SystemExit(f'Error copying {dest_path}')
+
                 else:
                     if not cmp(abs_path, dest_path):
                         if getmtime(abs_path) > getmtime(dest_path):
                             try:
                                 copy2(abs_path, dest_path)
+                            except PermissionError:
+                                print(f"EPERM: Error copying {dest_path}")
                             except OSError:
                                 raise SystemExit(f'Error replacing {dest_path}')
+
                 self.files_count += 1
             self.progress(self.files_count, self.files_total)
 
@@ -220,7 +228,7 @@ class Backup:
                             rmtree(abs_path)
                             print("Deleted " + abs_path)
                         except PermissionError:
-                            print("Error accessing: " + abs_path)
+                            print("EPERM: Error accessing: " + abs_path)
 
                 else:
                     self.clean_files(abs_path)
@@ -231,7 +239,7 @@ class Backup:
                             remove(abs_path)
                             print("Deleted " + abs_path)
                         except PermissionError:
-                            print("Error accessing: " + abs_path)
+                            print("EPERM: Error accessing: " + abs_path)
 
     def connect(self):
         opts = CnOpts()
