@@ -37,7 +37,6 @@ def main():
 					elif arg == "-ll":
 						flags["longlist"] = True
 
-	call("clear") if name == "posix" else call("cls")
 	check(src)
 
 
