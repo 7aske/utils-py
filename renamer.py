@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 from os import getcwd, listdir, makedirs
 from os.path import join, isdir, splitext, exists, isabs
 from re import sub
